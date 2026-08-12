@@ -1,0 +1,93 @@
+{
+  "name": "Glance",
+  "displayName": "Glance",
+  "description": "Glance: Unified developer dashboard for GitHub and Bitbucket inside Cursor/VS Code.",
+  "version": "0.0.1",
+  "publisher": "bhaumikmaan",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "devCommandCenter",
+          "title": "Glance",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "devCommandCenter": [
+        {
+          "id": "devCommandCenter.sidebarView",
+          "name": "Glance",
+          "type": "webview"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "devCommandCenter.open",
+        "title": "Glance: Open Dashboard"
+      }
+    ],
+    "configuration": {
+      "title": "Dev Command Center",
+      "properties": {
+        "devCommandCenter.pollingIntervalSeconds": {
+          "type": "number",
+          "default": 60,
+          "minimum": 30,
+          "maximum": 600,
+          "description": "Polling interval in seconds for provider data refresh."
+        },
+        "devCommandCenter.github.apiBaseUrl": {
+          "type": "string",
+          "default": "https://api.github.com",
+          "description": "GitHub API base URL. Keep default for github.com, customize for GitHub Enterprise."
+        },
+        "devCommandCenter.bitbucket.baseUrl": {
+          "type": "string",
+          "default": "https://bitbucket.org",
+          "description": "Bitbucket Data Center base URL."
+        },
+        "devCommandCenter.myWork.extraRepositories": {
+          "type": "array",
+          "default": [],
+          "description": "Optional additional repositories to include for My Work.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "devCommandCenter.currentRepo.branchAgeWarningDays": {
+          "type": "number",
+          "default": 14,
+          "minimum": 1,
+          "maximum": 120,
+          "description": "Warn when active branch age exceeds this number of days."
+        },
+        "devCommandCenter.currentRepo.defaultBranch": {
+          "type": "string",
+          "default": "main",
+          "description": "Default branch name used for branch age and repository status checks."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "esbuild src/extension.ts --bundle --platform=node --outfile=dist/extension.js --external:vscode",
+    "watch": "esbuild src/extension.ts --bundle --platform=node --outfile=dist/extension.js --external:vscode --watch",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "@types/vscode": "^1.85.0",
+    "esbuild": "^0.25.9",
+    "typescript": "^5.9.2"
+  }
+}
