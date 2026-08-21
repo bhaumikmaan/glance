@@ -45,7 +45,7 @@ export class BitbucketAdapter implements ProviderAdapter {
       };
       this.cache.set("snapshot", snapshot, 30_000);
       return snapshot;
-    } catch (_error) {
+    } catch {
       const fallback = buildFallbackSnapshot();
       this.cache.set("snapshot", fallback, 15_000);
       return {

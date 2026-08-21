@@ -64,7 +64,7 @@ export class GitHubAdapter implements ProviderAdapter {
       };
       this.cache.set("snapshot", snapshot, 30_000);
       return snapshot;
-    } catch (_error) {
+    } catch {
       const fallback = buildFallbackSnapshot();
       this.cache.set("snapshot", fallback, 15_000);
       return {
@@ -99,6 +99,7 @@ function deriveGitHubBlockedReasons(item: GitHubSearchResponse["items"][number])
 }
 
 function inferCommitStatusFromChecks(
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _item: GitHubSearchResponse["items"][number]
 ): WorkItem["lastCommitStatus"] {
   // Search API does not include check rollup; default to unknown for now.

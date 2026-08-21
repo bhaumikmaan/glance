@@ -1,0 +1,6 @@
+.github/
+src/
+tsconfig.json
+eslint.config.mjs
+node_modules/
+*.vsix

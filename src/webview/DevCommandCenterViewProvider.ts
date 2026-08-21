@@ -37,7 +37,9 @@ export class DevCommandCenterViewProvider implements vscode.WebviewViewProvider 
 
   resolveWebviewView(
     webviewView: vscode.WebviewView,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     _context: vscode.WebviewViewResolveContext,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     _token: vscode.CancellationToken
   ): void {
     this.view = webviewView;
