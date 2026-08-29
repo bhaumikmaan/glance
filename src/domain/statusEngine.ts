@@ -21,8 +21,14 @@ export function deriveBlockedReason(
 }
 
 export function deriveReadiness(item: Pick<WorkItem, "blockedReasons">): WorkItem["readiness"] {
-  if (item.blockedReasons.length > 0) {
+  if (item.blockedReasons.includes("pipelineFailure")) {
     return "blocked";
+  }
+  if (item.blockedReasons.includes("changesRequested")) {
+    return "blocked";
+  }
+  if (item.blockedReasons.includes("awaitingReviews")) {
+    return "pending";
   }
   return "ready";
 }

@@ -15,11 +15,6 @@ export class GitHubAdapter implements ProviderAdapter {
   ) {}
 
   async fetchSnapshot(): Promise<ProviderSnapshot> {
-    const cached = this.cache.get("snapshot");
-    if (cached) {
-      return cached;
-    }
-
     const token = await this.secretStore.get("github.token");
     if (!token) {
       return {
@@ -29,6 +24,11 @@ export class GitHubAdapter implements ProviderAdapter {
         workItems: [],
         warning: "GitHub token not configured."
       };
+    }
+
+    const cached = this.cache.get("snapshot");
+    if (cached) {
+      return cached;
     }
 
     try {

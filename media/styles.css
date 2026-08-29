@@ -17,6 +17,11 @@ body.theme-force-light {
   --glance-bg: #f7f7f7;
   --glance-fg: #111111;
   --glance-muted: #4a4a4a;
+  --vscode-foreground: #111111;
+  --vscode-descriptionForeground: #4a4a4a;
+  --vscode-input-foreground: #111111;
+  --vscode-input-background: #ffffff;
+  --vscode-editorWidget-background: #ffffff;
   background: var(--glance-bg);
   color: var(--glance-fg);
 }
@@ -82,6 +87,7 @@ body.theme-force-light {
   display: grid;
   place-items: center;
   margin-top: 6px;
+  padding: 12px;
 }
 
 .tab-button {
@@ -135,7 +141,7 @@ select option {
 }
 
 .muted {
-  color: var(--vscode-descriptionForeground);
+  color: var(--glance-muted, var(--vscode-descriptionForeground));
 }
 
 .badge {
@@ -165,6 +171,8 @@ section {
 
 button {
   margin-right: 8px;
+  border-radius: 10px;
+  padding: 6px 12px;
 }
 
 input[type="password"] {
@@ -183,7 +191,31 @@ input[type="password"] {
 }
 
 .button-row {
-  margin-top: 8px;
+  margin-top: 10px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.provider-choice-row {
+  width: 100%;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 1fr 1fr;
+}
+
+#onboarding-config-section {
+  width: 100%;
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+}
+
+.onboarding-panel {
+  margin-top: 6px;
+  width: 100%;
+  display: grid;
+  justify-items: center;
 }
 
 .loading-row {
@@ -191,6 +223,15 @@ input[type="password"] {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.inline-loading {
+  margin-left: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--glance-muted, var(--vscode-descriptionForeground));
 }
 
 .spinner {
@@ -271,7 +312,7 @@ input[type="password"] {
   margin-top: 6px;
   display: grid;
   gap: 2px;
-  color: var(--vscode-descriptionForeground);
+  color: var(--glance-muted, var(--vscode-descriptionForeground));
   font-size: 12px;
 }
 
@@ -284,7 +325,7 @@ input[type="password"] {
 
 .welcome-center {
   display: grid;
-  gap: 12px;
+  gap: 14px;
   justify-items: center;
   max-width: 520px;
   margin: 0 auto;
@@ -296,6 +337,53 @@ input[type="password"] {
 .welcome-center input,
 .welcome-center select {
   width: 100%;
+}
+
+.welcome-center .controls-row,
+.welcome-center .button-row {
+  justify-content: center;
+  align-items: center;
+}
+
+.welcome-center h2,
+.welcome-center p {
+  margin: 0;
+}
+
+#onboarding-selected-provider {
+  margin: 0;
+}
+
+#mywork-filters {
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.info-card,
+.work-card,
+.provider-pill,
+button,
+input,
+select {
+  transition: all 160ms ease;
+}
+
+button:hover {
+  transform: translateY(-1px);
+}
+
+.onboarding-panel {
+  animation: fadeSlideIn 180ms ease;
+}
+
+@keyframes fadeSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .glance-logo {
@@ -368,7 +456,54 @@ details.info-card > summary {
 
 .companion-timer {
   font-size: 12px;
-  color: var(--vscode-descriptionForeground);
+  color: var(--glance-muted, var(--vscode-descriptionForeground));
+}
+
+.build-status-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 11px;
+  border: 1px solid var(--vscode-input-border, transparent);
+}
+
+.status-pill.success {
+  background: color-mix(in srgb, var(--vscode-testing-iconPassed) 25%, transparent);
+}
+
+.status-pill.failure {
+  background: color-mix(in srgb, var(--vscode-errorForeground) 25%, transparent);
+}
+
+.status-pill.pending,
+.status-pill.unknown {
+  background: color-mix(in srgb, var(--vscode-editorWarning-foreground) 25%, transparent);
+}
+
+.branches-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.branches-table th,
+.branches-table td {
+  text-align: left;
+  padding: 6px 4px;
+  border-bottom: 1px solid var(--vscode-input-border, transparent);
+}
+
+.branches-table th {
+  color: var(--glance-muted, var(--vscode-descriptionForeground));
+  font-weight: 600;
 }
 
 pre {

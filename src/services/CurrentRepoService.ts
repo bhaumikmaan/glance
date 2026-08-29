@@ -8,6 +8,7 @@ const exec = promisify(execCallback);
 type CurrentRepoSnapshot = {
   workspaceName?: string;
   workspacePath?: string;
+  effectiveDefaultBranch?: string;
   activeBranch?: string;
   activeBranchAgeDays?: number;
   branchAgeWarning: boolean;
@@ -43,14 +44,19 @@ export class CurrentRepoService {
 
     const rootPath = workspaceFolder.uri.fsPath;
     const activeBranch = await this.safeGit("git rev-parse --abbrev-ref HEAD", rootPath);
-    const branchAgeDays = await this.getBranchAgeDays(rootPath, activeBranch, defaultBranch);
-    const coreBranches = await this.getCoreBranches(rootPath, defaultBranch);
+    const effectiveDefaultBranch = await this.resolveBaseBranch(rootPath, defaultBranch);
+    const branchAgeDays = await this.getBranchAgeDays(rootPath, activeBranch);
+    const coreBranches = await this.getCoreBranches(
+      rootPath,
+      effectiveDefaultBranch ?? defaultBranch
+    );
     const recentBranches = await this.getRecentBranches(rootPath);
     const codeowners = await this.getCodeownersInfo(workspaceFolder.uri);
 
     return {
       workspaceName: workspaceFolder.name,
       workspacePath: rootPath,
+      effectiveDefaultBranch: effectiveDefaultBranch ?? undefined,
       activeBranch: activeBranch ?? undefined,
       activeBranchAgeDays: branchAgeDays ?? undefined,
       branchAgeWarning: (branchAgeDays ?? 0) > branchAgeWarningDays,
@@ -95,46 +101,44 @@ export class CurrentRepoService {
 
   private async getBranchAgeDays(
     workspacePath: string,
-    branchName: string | null,
-    defaultBranch: string
+    branchName: string | null
   ): Promise<number | null> {
     if (!branchName) {
       return null;
     }
-    const baseBranch = (await this.branchExists(workspacePath, defaultBranch))
-      ? defaultBranch
-      : (await this.branchExists(workspacePath, "main"))
-        ? "main"
-        : (await this.branchExists(workspacePath, "master"))
-          ? "master"
-          : null;
-
-    if (!baseBranch || branchName === baseBranch) {
-      return 0;
-    }
-
-    const mergeBase = await this.safeGit(
-      `git merge-base ${baseBranch} ${branchName}`,
+    const latestCommitTs = await this.safeGit(
+      `git log -1 --format=%ct ${branchName}`,
       workspacePath
     );
-    if (!mergeBase) {
+    if (!latestCommitTs) {
       return null;
     }
+    const lastTs = Number(latestCommitTs.split(/\r?\n/)[0]) * 1000;
+    if (Number.isNaN(lastTs)) {
+      return null;
+    }
+    return Math.max(0, Math.floor((Date.now() - lastTs) / 86_400_000));
+  }
 
-    const firstCommitTs = await this.safeGit(
-      `git log ${mergeBase.trim()}..${branchName} --reverse --format=%ct`,
+  private async resolveBaseBranch(
+    workspacePath: string,
+    configuredDefault: string
+  ): Promise<string | null> {
+    if (await this.branchExists(workspacePath, configuredDefault)) {
+      return configuredDefault;
+    }
+    const originHead = await this.safeGit(
+      "git symbolic-ref --short refs/remotes/origin/HEAD",
       workspacePath
     );
-    const firstTsLine = firstCommitTs?.split(/\r?\n/).find(Boolean);
-    if (!firstTsLine) {
-      return 0;
+    const fromOriginHead = originHead?.replace("origin/", "");
+    if (fromOriginHead && (await this.branchExists(workspacePath, fromOriginHead))) {
+      return fromOriginHead;
     }
-
-    const firstMs = Number(firstTsLine) * 1000;
-    if (Number.isNaN(firstMs)) {
-      return null;
-    }
-    return Math.floor((Date.now() - firstMs) / 86_400_000);
+    if (await this.branchExists(workspacePath, "develop")) return "develop";
+    if (await this.branchExists(workspacePath, "main")) return "main";
+    if (await this.branchExists(workspacePath, "master")) return "master";
+    return null;
   }
 
   private async getRecentBranches(

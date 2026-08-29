@@ -85,8 +85,9 @@ export class DevCommandCenterViewProvider implements vscode.WebviewViewProvider 
         const payload = typed.payload as { provider?: string; token?: string };
         if (payload.provider && payload.token) {
           await this.secretStore.store(`${payload.provider}.token`, payload.token);
-          vscode.window.showInformationMessage(
-            `${payload.provider} token saved in SecretStorage.`
+          vscode.window.setStatusBarMessage(
+            `${payload.provider} token saved in SecretStorage.`,
+            7000
           );
           const snapshot = await this.appService.refreshNow();
           await this.view?.webview.postMessage({
@@ -101,8 +102,9 @@ export class DevCommandCenterViewProvider implements vscode.WebviewViewProvider 
         const payload = typed.payload as { provider?: string };
         if (payload.provider) {
           await this.secretStore.delete(`${payload.provider}.token`);
-          vscode.window.showInformationMessage(
-            `${payload.provider} token removed from SecretStorage.`
+          vscode.window.setStatusBarMessage(
+            `${payload.provider} token removed from SecretStorage.`,
+            7000
           );
           const snapshot = await this.appService.refreshNow();
           await this.view?.webview.postMessage({
@@ -141,17 +143,24 @@ export class DevCommandCenterViewProvider implements vscode.WebviewViewProvider 
 
       if (typed.type === "auth/openOAuth" && typed.payload) {
         const payload = typed.payload as { provider?: string };
+        let statusMessage = "OAuth sign-in could not be opened. Use token mode.";
         if (payload.provider === "github") {
           await vscode.env.openExternal(vscode.Uri.parse("https://github.com/login"));
+          statusMessage =
+            "GitHub sign-in page opened. Complete sign-in and then paste a token if OAuth callback is not provisioned.";
         }
         if (payload.provider === "bitbucket") {
           await vscode.env.openExternal(
             vscode.Uri.parse(this.configService.bitbucketBaseUrl)
           );
-          vscode.window.showInformationMessage(
-            "If OAuth does not complete automatically, use Token mode in onboarding."
-          );
+          statusMessage =
+            "Bitbucket sign-in page opened. If OAuth callback is not provisioned, use token mode.";
         }
+        await this.view?.webview.postMessage({
+          type: "auth/oauthResult",
+          payload: { ok: true, message: statusMessage }
+        });
+        vscode.window.setStatusBarMessage(statusMessage, 8000);
       }
 
       if (typed.type === "config/updateBaseUrl" && typed.payload) {
@@ -170,18 +179,19 @@ export class DevCommandCenterViewProvider implements vscode.WebviewViewProvider 
           await section.update(
             "github.apiBaseUrl",
             normalized,
-            vscode.ConfigurationTarget.Workspace
+            vscode.ConfigurationTarget.Global
           );
         }
         if (payload.provider === "bitbucket") {
           await section.update(
             "bitbucket.baseUrl",
             normalized,
-            vscode.ConfigurationTarget.Workspace
+            vscode.ConfigurationTarget.Global
           );
         }
-        vscode.window.showInformationMessage(
-          `${payload.provider} base URL updated to ${normalized}`
+        vscode.window.setStatusBarMessage(
+          `${payload.provider} base URL updated to ${normalized}`,
+          8000
         );
         await this.postInitPayload();
       }
@@ -198,7 +208,7 @@ export class DevCommandCenterViewProvider implements vscode.WebviewViewProvider 
           branch,
           vscode.ConfigurationTarget.Workspace
         );
-        vscode.window.showInformationMessage(`Default branch updated to ${branch}`);
+        vscode.window.setStatusBarMessage(`Default branch updated to ${branch}`, 7000);
         const snapshot = await this.appService.refreshNow();
         await this.view?.webview.postMessage({
           type: "dashboard/snapshot",
@@ -314,9 +324,10 @@ export class DevCommandCenterViewProvider implements vscode.WebviewViewProvider 
     <header class="header">
       <h1>GLANCE</h1>
       <div class="header-right">
-        <div id="status-badges">
-          <span class="badge red">R 0</span>
-          <span class="badge yellow">Y 0</span>
+        <div id="status-badges" style="display:none;">
+          <span class="badge red">0</span>
+          <span class="badge yellow">0</span>
+          <span class="badge green">0</span>
         </div>
         <div id="provider-pills" class="provider-pills"></div>
         <button id="open-settings" class="icon-button" title="Open extension settings">Settings</button>
@@ -332,34 +343,35 @@ export class DevCommandCenterViewProvider implements vscode.WebviewViewProvider 
         <div class="welcome-center">
           <img class="glance-logo" src="${glanceLogoUri}" alt="Glance logo" />
           <h2>Welcome to Glance</h2>
-          <p class="muted">Set your provider and base URL, then choose OAuth sign-in or token.</p>
-          <div class="controls-row">
-            <select id="onboarding-provider">
-              <option value="bitbucket">Bitbucket</option>
-              <option value="github">GitHub</option>
-            </select>
-            <input id="onboarding-base-url" type="text" placeholder="e.g. bitbucket.example.com" />
+          <p class="muted">Choose your provider first. Then add URL and authentication.</p>
+          <div id="onboarding-provider-picker" class="provider-choice-row">
+            <button id="pick-provider-bitbucket" data-provider="bitbucket">Use Bitbucket</button>
+            <button id="pick-provider-github" data-provider="github">Use GitHub</button>
           </div>
-          <div class="button-row">
-            <button id="onboarding-save-base">Save Base URL</button>
-          </div>
-          <div class="button-row">
-            <button id="onboarding-use-oauth">Use OAuth</button>
-            <button id="onboarding-use-token">Use Token</button>
+          <div id="onboarding-config-section" style="display:none;">
+            <p id="onboarding-selected-provider" class="muted">Provider selected</p>
+            <div class="controls-row">
+              <input id="onboarding-base-url" type="text" placeholder="e.g. bitbucket.example.com" />
+              <button id="onboarding-save-base">Save Base URL</button>
+            </div>
+            <div class="button-row">
+              <button id="onboarding-use-oauth">Use OAuth</button>
+              <button id="onboarding-use-token">Use Token</button>
+            </div>
+            <div id="onboarding-oauth-panel" class="onboarding-panel">
+              <button class="oauth-btn" id="onboarding-oauth-btn" data-provider="bitbucket">Continue with OAuth</button>
+            </div>
+            <div id="onboarding-token-panel" class="onboarding-panel" style="display:none;">
+              <input id="onboarding-token-input" type="password" placeholder="Paste token" />
+              <div class="button-row">
+                <button id="onboarding-save-token">Save Token</button>
+                <button id="onboarding-open-token-help">Open Token Page</button>
+              </div>
+            </div>
           </div>
           <div id="auth-loading" class="loading-row" style="display:none;">
             <span class="spinner"></span>
             <span id="auth-loading-text">Getting things ready...</span>
-          </div>
-          <div id="onboarding-oauth-panel" class="onboarding-panel">
-            <button class="oauth-btn" id="onboarding-oauth-btn" data-provider="bitbucket">Continue with OAuth</button>
-          </div>
-          <div id="onboarding-token-panel" class="onboarding-panel" style="display:none;">
-            <input id="onboarding-token-input" type="password" placeholder="Paste token" />
-            <div class="button-row">
-              <button id="onboarding-save-token">Save Token</button>
-              <button id="onboarding-open-token-help">Open Token Page</button>
-            </div>
           </div>
         </div>
       </section>
@@ -368,9 +380,16 @@ export class DevCommandCenterViewProvider implements vscode.WebviewViewProvider 
       <section id="mywork-tab" class="tab-panel active">
         <div class="section-header-row">
           <h2>My Work</h2>
-          <button id="refresh-dashboard">Refresh Now</button>
+          <div>
+            <button id="toggle-filters">Filters</button>
+            <button id="refresh-dashboard">Refresh Now</button>
+            <span id="refresh-loading" class="inline-loading" style="display:none;">
+              <span class="spinner"></span>
+              <span>Refreshing...</span>
+            </span>
+          </div>
         </div>
-        <div class="controls-row">
+        <div id="mywork-filters" class="controls-row" style="display:none;">
           <input id="filter-query" type="text" placeholder="Search title/repo/author" />
           <select id="filter-provider">
             <option value="all">All providers</option>
@@ -391,6 +410,11 @@ export class DevCommandCenterViewProvider implements vscode.WebviewViewProvider 
           </select>
         </div>
         <div id="mywork-summary" class="mywork-summary"></div>
+        <div class="info-card">
+          <h3>Review Assistant</h3>
+          <div id="review-assistant-summary" class="muted">Waiting for snapshot...</div>
+          <div id="review-assistant-breaking" class="muted"></div>
+        </div>
         <div class="mywork-sections">
           <details class="info-card" open>
             <summary><img class="tiny-icon" src="${prIconUri}" alt="pr" /> My PRs & Info</summary>
@@ -416,7 +440,7 @@ export class DevCommandCenterViewProvider implements vscode.WebviewViewProvider 
           <h3>Active Branch & Age</h3>
           <div id="current-active-branch" class="muted">Waiting for snapshot...</div>
         </div>
-        <div class="info-card">
+        <div class="info-card" id="current-codeowners-card">
           <h3>CODEOWNERS for Active File</h3>
           <div id="current-codeowners" class="muted">Waiting for snapshot...</div>
         </div>
@@ -424,13 +448,13 @@ export class DevCommandCenterViewProvider implements vscode.WebviewViewProvider 
           <h3>My Branches (Last 30 Days)</h3>
           <div id="current-recent-branches" class="muted">Waiting for snapshot...</div>
         </div>
-        <div class="info-card">
-          <h3>Default Branch</h3>
+        <details class="info-card">
+          <summary>Default Branch</summary>
           <div class="controls-row">
             <input id="default-branch-input" type="text" placeholder="main" />
             <button id="save-default-branch">Save Default Branch</button>
           </div>
-        </div>
+        </details>
         <div class="info-card">
           <h3>Dependency CVE Tracer</h3>
           <p class="muted">Enter package coordinate like <code>org.yaml:snakeyaml:1.30</code></p>
@@ -449,31 +473,52 @@ export class DevCommandCenterViewProvider implements vscode.WebviewViewProvider 
           <p class="muted">Paste tokens here. They are stored in VS Code SecretStorage.</p>
           <div class="auth-grid">
             <label for="github-token"><img class="tiny-icon" src="${githubIconUri}" alt="github" /> GitHub Token</label>
-            <input id="github-token" type="password" placeholder="ghp_..." />
-            <div class="button-row">
-              <button id="save-github">Save</button>
-              <button id="clear-github">Clear</button>
-              <button id="help-github">Open Token Page</button>
+            <div id="github-disconnected-actions" class="button-row">
+              <button id="start-github-signin">Sign in</button>
+            </div>
+            <div id="github-signin-modes" class="button-row" style="display:none;">
+              <button id="github-use-oauth">Use OAuth</button>
+              <button id="github-use-token">Use Token</button>
+            </div>
+            <div id="github-oauth-panel" class="button-row" style="display:none;">
               <button class="oauth-btn" data-provider="github">Sign in with OAuth</button>
+            </div>
+            <div id="github-token-panel" style="display:none;">
+              <input id="github-token" type="password" placeholder="ghp_..." />
+              <div class="button-row">
+                <button id="save-github">Save Token</button>
+                <button id="help-github">Open Token Page</button>
+              </div>
+            </div>
+            <div id="github-connected-actions" class="button-row" style="display:none;">
+              <button id="clear-github">Remove Connection</button>
             </div>
             <p id="github-status" class="auth-status muted">Status: Not configured</p>
           </div>
           <div class="auth-grid">
             <label for="bitbucket-token"><img class="tiny-icon" src="${bitbucketIconUri}" alt="bitbucket" /> Bitbucket Token</label>
-            <input id="bitbucket-token" type="password" placeholder="Paste Bitbucket access token" />
-            <div class="button-row">
-              <button id="save-bitbucket">Save</button>
-              <button id="clear-bitbucket">Clear</button>
-              <button id="help-bitbucket">Open Token Page</button>
+            <div id="bitbucket-disconnected-actions" class="button-row">
+              <button id="start-bitbucket-signin">Sign in</button>
+            </div>
+            <div id="bitbucket-signin-modes" class="button-row" style="display:none;">
+              <button id="bitbucket-use-oauth">Use OAuth</button>
+              <button id="bitbucket-use-token">Use Token</button>
+            </div>
+            <div id="bitbucket-oauth-panel" class="button-row" style="display:none;">
               <button class="oauth-btn" data-provider="bitbucket">Sign in with OAuth</button>
+            </div>
+            <div id="bitbucket-token-panel" style="display:none;">
+              <input id="bitbucket-token" type="password" placeholder="Paste Bitbucket access token" />
+              <div class="button-row">
+                <button id="save-bitbucket">Save Token</button>
+                <button id="help-bitbucket">Open Token Page</button>
+              </div>
+            </div>
+            <div id="bitbucket-connected-actions" class="button-row" style="display:none;">
+              <button id="clear-bitbucket">Remove Connection</button>
             </div>
             <p id="bitbucket-status" class="auth-status muted">Status: Not configured</p>
           </div>
-        </div>
-        <div class="info-card">
-          <h3>Review Assistant</h3>
-          <div id="review-assistant-summary" class="muted">Waiting for snapshot...</div>
-          <div id="review-assistant-breaking" class="muted"></div>
         </div>
         <div class="info-card">
           <h3>Theme</h3>

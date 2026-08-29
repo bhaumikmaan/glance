@@ -42,6 +42,7 @@ export type DashboardSnapshot = {
   currentRepo: {
     workspaceName?: string;
     workspacePath?: string;
+    effectiveDefaultBranch?: string;
     activeBranch?: string;
     activeBranchAgeDays?: number;
     branchAgeWarning: boolean;

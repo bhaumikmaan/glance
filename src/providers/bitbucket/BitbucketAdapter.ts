@@ -15,11 +15,6 @@ export class BitbucketAdapter implements ProviderAdapter {
   ) {}
 
   async fetchSnapshot(): Promise<ProviderSnapshot> {
-    const cached = this.cache.get("snapshot");
-    if (cached) {
-      return cached;
-    }
-
     const token = await this.secretStore.get("bitbucket.token");
     if (!token) {
       return {
@@ -30,6 +25,11 @@ export class BitbucketAdapter implements ProviderAdapter {
         warning:
           "Bitbucket token not configured. Use access tokens page from your workspace."
       };
+    }
+
+    const cached = this.cache.get("snapshot");
+    if (cached) {
+      return cached;
     }
 
     try {
@@ -106,17 +106,36 @@ export class BitbucketAdapter implements ProviderAdapter {
       return "unknown";
     }
     try {
-      const endpoint = `${baseUrl}/rest/build-status/1.0/commits/${commit}`;
-      const response = await getJson<{
-        values?: Array<{ state?: string }>;
-      }>(endpoint, {
-        Authorization: `Bearer ${token}`,
-        Accept: "application/json"
-      });
-      const states = (response.values ?? []).map((value) => value.state ?? "");
-      if (states.some((state) => state === "FAILED")) return "failure";
-      if (states.some((state) => state === "INPROGRESS")) return "pending";
-      if (states.some((state) => state === "SUCCESSFUL")) return "success";
+      const endpoints = [
+        `${baseUrl}/rest/build-status/1.0/commits/${commit}`,
+        `${baseUrl}/rest/build-status/latest/commits/${commit}`
+      ];
+      const responses = await Promise.allSettled(
+        endpoints.map((endpoint) =>
+          getJson<{
+            state?: string;
+            values?: Array<{ state?: string }>;
+          }>(endpoint, {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json"
+          })
+        )
+      );
+      const states = responses
+        .filter(
+          (result): result is PromiseFulfilledResult<{ state?: string; values?: Array<{ state?: string }> }> =>
+            result.status === "fulfilled"
+        )
+        .flatMap((result) => {
+          const topState = result.value.state ? [result.value.state] : [];
+          const childStates = (result.value.values ?? []).map((value) => value.state ?? "");
+          return [...topState, ...childStates];
+        })
+        .map((state) => state.toUpperCase());
+
+      if (states.some((state) => state.includes("FAIL"))) return "failure";
+      if (states.some((state) => state.includes("INPROGRESS") || state.includes("PENDING"))) return "pending";
+      if (states.some((state) => state.includes("SUCCESS"))) return "success";
       return "unknown";
     } catch {
       return "unknown";
