@@ -11,7 +11,6 @@
   const dependencyTraceOutput = document.getElementById("dependency-trace-output");
   const toggleFiltersButton = document.getElementById("toggle-filters");
   const myWorkFilters = document.getElementById("mywork-filters");
-  const refreshLoading = document.getElementById("refresh-loading");
   const authLanding = document.getElementById("auth-landing");
   const appShell = document.getElementById("app-shell");
   const tabsNav = document.getElementById("tabs-nav");
@@ -25,7 +24,10 @@
   const currentCodeowners = document.getElementById("current-codeowners");
   const currentCodeownersCard = document.getElementById("current-codeowners-card");
   const currentRecentBranches = document.getElementById("current-recent-branches");
+  const applyFiltersButton = document.getElementById("apply-filters");
+  const filtersLoading = document.getElementById("filters-loading");
   let isManualRefreshInFlight = false;
+  let manualRefreshTimeout;
 
   const tabs = window.Glance.tabs.initTabs();
   const auth = window.Glance.auth.initAuth(vscode);
@@ -76,9 +78,14 @@
     });
   });
   refreshButton?.addEventListener("click", () => {
+    if (isManualRefreshInFlight) return;
     isManualRefreshInFlight = true;
-    if (refreshButton) refreshButton.disabled = true;
-    if (refreshLoading) refreshLoading.style.display = "inline-flex";
+    if (refreshButton) refreshButton.classList.add("is-loading");
+    if (manualRefreshTimeout) window.clearTimeout(manualRefreshTimeout);
+    manualRefreshTimeout = window.setTimeout(() => {
+      isManualRefreshInFlight = false;
+      if (refreshButton) refreshButton.classList.remove("is-loading");
+    }, 12000);
     vscode.postMessage({ type: "dashboard/refresh" });
   });
   toggleFiltersButton?.addEventListener("click", () => {
@@ -86,10 +93,13 @@
     const isHidden = myWorkFilters.style.display === "none";
     myWorkFilters.style.display = isHidden ? "grid" : "none";
     toggleFiltersButton.textContent = isHidden ? "Hide Filters" : "Filters";
+    if (filtersLoading) filtersLoading.style.display = "none";
+    if (applyFiltersButton) applyFiltersButton.disabled = false;
   });
   if (myWorkFilters) {
     myWorkFilters.style.display = "none";
   }
+  if (filtersLoading) filtersLoading.style.display = "none";
   saveDefaultBranchButton?.addEventListener("click", () => {
     const branch = defaultBranchInput?.value?.trim();
     if (!branch) return;
@@ -121,8 +131,8 @@
     renderProviderPills(snapshot.providers || [], window.Glance.app.configuredProviders || []);
     if (isManualRefreshInFlight) {
       isManualRefreshInFlight = false;
-      if (refreshButton) refreshButton.disabled = false;
-      if (refreshLoading) refreshLoading.style.display = "none";
+      if (manualRefreshTimeout) window.clearTimeout(manualRefreshTimeout);
+      if (refreshButton) refreshButton.classList.remove("is-loading");
     }
 
     myWork.renderSnapshot(snapshot, window.Glance.app.configuredProviders || []);

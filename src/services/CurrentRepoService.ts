@@ -2,6 +2,7 @@ import * as path from "path";
 import * as vscode from "vscode";
 import { exec as execCallback } from "node:child_process";
 import { promisify } from "node:util";
+import { getJson } from "../core/httpClient";
 
 const exec = promisify(execCallback);
 
@@ -28,6 +29,11 @@ type CurrentRepoSnapshot = {
 };
 
 export class CurrentRepoService {
+  constructor(
+    private readonly getBitbucketBaseUrl?: () => string,
+    private readonly getBitbucketToken?: () => Promise<string | undefined>
+  ) {}
+
   async buildSnapshot(
     branchAgeWarningDays: number,
     defaultBranch: string
@@ -82,10 +88,61 @@ export class CurrentRepoService {
       results.push({
         name,
         exists,
-        status: "unknown"
+        status: await this.resolveBranchStatus(workspacePath, name)
       });
     }
     return results;
+  }
+
+  private async resolveBranchStatus(
+    workspacePath: string,
+    branch: string
+  ): Promise<"success" | "failure" | "pending" | "unknown"> {
+    const token = this.getBitbucketToken ? await this.getBitbucketToken() : undefined;
+    const baseUrl = this.getBitbucketBaseUrl ? this.getBitbucketBaseUrl() : undefined;
+    if (!token || !baseUrl) {
+      return "unknown";
+    }
+    const commit = await this.safeGit(`git rev-parse ${branch}`, workspacePath);
+    if (!commit) {
+      return "unknown";
+    }
+    try {
+      const endpoints = [
+        `${baseUrl}/rest/build-status/1.0/commits/${commit}`,
+        `${baseUrl}/rest/build-status/latest/commits/${commit}`
+      ];
+      const responses = await Promise.allSettled(
+        endpoints.map((endpoint) =>
+          getJson<{
+            state?: string;
+            values?: Array<{ state?: string }>;
+          }>(endpoint, {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json"
+          })
+        )
+      );
+      const states = responses
+        .filter(
+          (result): result is PromiseFulfilledResult<{ state?: string; values?: Array<{ state?: string }> }> =>
+            result.status === "fulfilled"
+        )
+        .flatMap((result) => {
+          const topState = result.value.state ? [result.value.state] : [];
+          const childStates = (result.value.values ?? []).map((value) => value.state ?? "");
+          return [...topState, ...childStates];
+        })
+        .map((state) => state.toUpperCase());
+      if (states.some((state) => state.includes("FAIL"))) return "failure";
+      if (states.some((state) => state.includes("INPROGRESS") || state.includes("PENDING"))) {
+        return "pending";
+      }
+      if (states.some((state) => state.includes("SUCCESS"))) return "success";
+      return "unknown";
+    } catch {
+      return "unknown";
+    }
   }
 
   private async branchExists(workspacePath: string, branch: string): Promise<boolean> {

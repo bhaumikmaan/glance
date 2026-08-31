@@ -7,6 +7,17 @@ export type BlockedReason =
 
 export type ProviderId = "github" | "bitbucket";
 
+export type DeploymentSignal = {
+  id: string;
+  provider: ProviderId;
+  repository: string;
+  title: string;
+  url: string;
+  status: "success" | "failure" | "pending" | "unknown";
+  updatedAt: string;
+  environment?: string;
+};
+
 export type WorkItem = {
   id: string;
   provider: ProviderId;
@@ -27,6 +38,7 @@ export type ProviderSnapshot = {
   reachable: boolean;
   authenticated: boolean;
   workItems: WorkItem[];
+  deployments?: DeploymentSignal[];
   warning?: string;
 };
 
@@ -39,6 +51,7 @@ export type DashboardSnapshot = {
   };
   providers: ProviderSnapshot[];
   myWork: WorkItem[];
+  deployments: DeploymentSignal[];
   currentRepo: {
     workspaceName?: string;
     workspacePath?: string;

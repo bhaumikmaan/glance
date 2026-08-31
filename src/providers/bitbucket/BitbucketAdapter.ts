@@ -1,7 +1,7 @@
 import { getJson } from "../../core/httpClient";
 import { TtlCache } from "../../core/ttlCache";
 import { deriveReadiness } from "../../domain/statusEngine";
-import { BlockedReason, ProviderSnapshot, WorkItem } from "../../domain/types";
+import { BlockedReason, DeploymentSignal, ProviderSnapshot, WorkItem } from "../../domain/types";
 import { SecretStore } from "../../services/SecretStore";
 import { ProviderAdapter } from "../types";
 
@@ -22,6 +22,7 @@ export class BitbucketAdapter implements ProviderAdapter {
         reachable: false,
         authenticated: false,
         workItems: [],
+        deployments: [],
         warning:
           "Bitbucket token not configured. Use access tokens page from your workspace."
       };
@@ -35,13 +36,15 @@ export class BitbucketAdapter implements ProviderAdapter {
     try {
       const authorItems = await this.fetchDashboardItems(token, "AUTHOR");
       const reviewerItems = await this.fetchDashboardItems(token, "REVIEWER");
+      const deployments = await this.fetchMergedDeploymentSignals(token);
       const merged = dedupeById([...authorItems, ...reviewerItems]);
 
       const snapshot: ProviderSnapshot = {
         provider: this.id,
         reachable: true,
         authenticated: true,
-        workItems: merged
+        workItems: merged,
+        deployments
       };
       this.cache.set("snapshot", snapshot, 30_000);
       return snapshot;
@@ -50,6 +53,7 @@ export class BitbucketAdapter implements ProviderAdapter {
       this.cache.set("snapshot", fallback, 15_000);
       return {
         ...fallback,
+        deployments: [],
         warning:
           "Bitbucket API fetch failed. Showing fallback sample data. Verify token and base URL."
       };
@@ -141,6 +145,40 @@ export class BitbucketAdapter implements ProviderAdapter {
       return "unknown";
     }
   }
+
+  private async fetchMergedDeploymentSignals(token: string): Promise<DeploymentSignal[]> {
+    const baseUrl = this.getBaseUrl();
+    const endpoint = `${baseUrl}/rest/api/1.0/dashboard/pull-requests?state=MERGED&role=AUTHOR&limit=25`;
+    const response = await getJson<BitbucketDashboardResponse>(endpoint, {
+      Authorization: `Bearer ${token}`,
+      Accept: "application/json"
+    });
+
+    const signals = await Promise.all((response.values ?? []).map(async (value) => {
+      const mergeCommit = value.properties?.mergeCommit?.id
+        || value.properties?.mergeResult?.current?.id
+        || value.toRef?.latestCommit;
+      const status = await this.fetchBuildStatus(baseUrl, token, mergeCommit);
+      return {
+        id: `bb-deploy-${value.id}`,
+        provider: "bitbucket",
+        repository: `${value.toRef?.repository?.project?.key ?? "UNKNOWN"}/${value.toRef?.repository?.slug ?? "unknown-repo"}`,
+        title: value.title ? `Merged: ${value.title}` : `Merged PR ${value.id}`,
+        url: value.links?.self?.[0]?.href ?? baseUrl,
+        status,
+        updatedAt: value.closedDate
+          ? new Date(value.closedDate).toISOString()
+          : value.updatedDate
+            ? new Date(value.updatedDate).toISOString()
+            : new Date().toISOString(),
+        environment: "Merged branch"
+      } satisfies DeploymentSignal;
+    }));
+
+    return signals
+      .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime())
+      .slice(0, 20);
+  }
 }
 
 type BitbucketDashboardResponse = {
@@ -167,6 +205,7 @@ function deriveBitbucketBlockedReasons(
 
 type BitbucketDashboardItem = {
   id: number;
+  closedDate?: number;
   title?: string;
   updatedDate?: number;
   author?: {
@@ -183,6 +222,25 @@ type BitbucketDashboardItem = {
       slug?: string;
       project?: {
         key?: string;
+      };
+    };
+  };
+  toRef?: {
+    latestCommit?: string;
+    repository?: {
+      slug?: string;
+      project?: {
+        key?: string;
+      };
+    };
+  };
+  properties?: {
+    mergeCommit?: {
+      id?: string;
+    };
+    mergeResult?: {
+      current?: {
+        id?: string;
       };
     };
   };

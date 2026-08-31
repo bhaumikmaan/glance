@@ -3,7 +3,6 @@
     const utils = window.Glance.utils;
     const githubIcon = document.body.getAttribute("data-github-icon") || "";
     const bitbucketIcon = document.body.getAttribute("data-bitbucket-icon") || "";
-    const deployIcon = document.body.getAttribute("data-deploy-icon") || "";
     const myWorkSummary = document.getElementById("mywork-summary");
     const myPrsList = document.getElementById("my-prs-list");
     const reviewPrsList = document.getElementById("review-prs-list");
@@ -12,12 +11,22 @@
     const filterProvider = document.getElementById("filter-provider");
     const filterReadiness = document.getElementById("filter-readiness");
     const sortBy = document.getElementById("sort-by");
+    const applyFiltersButton = document.getElementById("apply-filters");
+    const filtersLoading = document.getElementById("filters-loading");
     const displayLimit = 100;
+    let appliedFilters = {
+      query: "",
+      provider: "all",
+      readiness: "all",
+      sortBy: "updated_desc"
+    };
+    let lastSnapshot = null;
+    let lastConfiguredProviders = [];
 
     function getFilteredItems(items, configuredProviders) {
-      const query = (filterQuery?.value || "").trim().toLowerCase();
-      const provider = filterProvider?.value || "all";
-      const readiness = filterReadiness?.value || "all";
+      const query = (appliedFilters.query || "").trim().toLowerCase();
+      const provider = appliedFilters.provider || "all";
+      const readiness = appliedFilters.readiness || "all";
 
       return items
         .filter((item) => configuredProviders.includes(item.provider))
@@ -31,7 +40,7 @@
     }
 
     function getSortedItems(items) {
-      const mode = sortBy?.value || "updated_desc";
+      const mode = appliedFilters.sortBy || "updated_desc";
       const next = [...items];
       if (mode === "updated_asc") return next.sort((a, b) => new Date(a.updatedAt) - new Date(b.updatedAt));
       if (mode === "title_asc") return next.sort((a, b) => a.title.localeCompare(b.title));
@@ -63,42 +72,95 @@
       }).join("");
     }
 
+    function renderDeploymentCards(items) {
+      if (!items.length) return `<p class="muted">No recent deployment signals available yet.</p>`;
+      return items.map((item) => {
+        const statusClass = item.status === "failure"
+          ? "badge red"
+          : item.status === "pending"
+            ? "badge yellow"
+            : item.status === "success"
+              ? "badge green"
+              : "badge yellow";
+        const providerLogo = item.provider === "github" ? githubIcon : bitbucketIcon;
+        return `<article class="work-card">
+          <div class="work-card-top">
+            <div class="title-with-logo"><img class="tiny-icon" src="${providerLogo}" alt="${item.provider}" /><a class="work-title" href="${utils.escapeHtml(item.url)}">${utils.escapeHtml(item.title)}</a></div>
+            <span class="${statusClass}">${utils.escapeHtml(capitalize(item.status))}</span>
+          </div>
+          <div class="work-meta">
+            <span>${utils.escapeHtml(item.repository || "unknown-repo")}</span>
+            <span>Source: ${utils.escapeHtml(item.environment || "Merged branch")}</span>
+            <span>Updated: ${utils.escapeHtml(utils.formatTime(item.updatedAt))}</span>
+          </div>
+        </article>`;
+      }).join("");
+    }
+
+    function applyFilters() {
+      appliedFilters = {
+        query: filterQuery?.value || "",
+        provider: filterProvider?.value || "all",
+        readiness: filterReadiness?.value || "all",
+        sortBy: sortBy?.value || "updated_desc"
+      };
+      if (filtersLoading) filtersLoading.style.display = "inline-flex";
+      if (applyFiltersButton) applyFiltersButton.disabled = true;
+      window.setTimeout(() => {
+        if (lastSnapshot) {
+          renderSnapshot(lastSnapshot, lastConfiguredProviders);
+        }
+        if (filtersLoading) filtersLoading.style.display = "none";
+        if (applyFiltersButton) applyFiltersButton.disabled = false;
+      }, 250);
+    }
+
+    function sortByReadiness(items, order) {
+      const rank = order === "my"
+        ? { ready: 0, pending: 1, blocked: 2 }
+        : { pending: 0, ready: 1, blocked: 2 };
+      return [...items].sort((a, b) => {
+        const diff = (rank[a.readiness] ?? 99) - (rank[b.readiness] ?? 99);
+        if (diff !== 0) return diff;
+        return new Date(b.updatedAt) - new Date(a.updatedAt);
+      });
+    }
+
     function renderSnapshot(snapshot, configuredProviders) {
+      lastSnapshot = snapshot;
+      lastConfiguredProviders = configuredProviders;
       const myWorkItems = getSortedItems(getFilteredItems(snapshot.myWork || [], configuredProviders));
       const visible = myWorkItems.slice(0, displayLimit);
-
-      const myPrs = visible.filter((item) => item.isMine !== false);
-      const reviewPrs = visible.filter((item) => item.isMine === false);
-      const deployments = myPrs.slice(0, 10).map((item) => ({
-        env: "Dev/Stg/Prod",
-        status: item.lastCommitStatus,
-        title: item.title,
-        url: item.url,
-        updatedAt: item.updatedAt
-      }));
+      const myPrs = sortByReadiness(visible.filter((item) => item.isMine !== false), "my");
+      const reviewPrs = sortByReadiness(visible.filter((item) => item.isMine === false), "review");
+      const deployments = (snapshot.deployments || [])
+        .filter((dep) => configuredProviders.includes(dep.provider))
+        .slice(0, 10)
+        .map((dep) => ({
+          provider: dep.provider,
+          repository: dep.repository,
+          environment: dep.environment || "Merged branch",
+          status: dep.status,
+          title: dep.title,
+          url: dep.url,
+          updatedAt: dep.updatedAt
+        }));
 
       if (myWorkSummary) {
         const blocked = myWorkItems.filter((item) => item.readiness === "blocked").length;
         const ready = myWorkItems.filter((item) => item.readiness === "ready").length;
         myWorkSummary.textContent = `Showing ${visible.length}/${myWorkItems.length} | Blocked ${blocked} | Ready ${ready}`;
       }
-
       if (myPrsList) myPrsList.innerHTML = renderCards(myPrs);
       if (reviewPrsList) reviewPrsList.innerHTML = renderCards(reviewPrs);
       if (deploymentsList) {
-        deploymentsList.innerHTML = deployments.length
-          ? deployments
-              .map(
-                (dep) =>
-                  `<div class="deployment-row"><img class="tiny-icon" src="${deployIcon}" alt="deployment" /><a class="work-title" href="${utils.escapeHtml(dep.url)}">${utils.escapeHtml(dep.title)}</a><span>${utils.escapeHtml(dep.env)} | ${utils.escapeHtml(dep.status)} | ${utils.escapeHtml(utils.formatTime(dep.updatedAt))}</span></div>`
-              )
-              .join("")
-          : `<p class="muted">No recent deployment signals available yet.</p>`;
+        deploymentsList.innerHTML = renderDeploymentCards(deployments);
       }
-
     }
 
-    return { renderSnapshot };
+    applyFiltersButton?.addEventListener("click", applyFilters);
+
+    return { renderSnapshot, applyFilters };
   }
 
   function capitalize(value) {

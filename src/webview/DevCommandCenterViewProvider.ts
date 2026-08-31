@@ -228,6 +228,7 @@ export class DevCommandCenterViewProvider implements vscode.WebviewViewProvider 
           payload: result
         });
       }
+
     });
   }
 
@@ -382,11 +383,13 @@ export class DevCommandCenterViewProvider implements vscode.WebviewViewProvider 
           <h2>My Work</h2>
           <div>
             <button id="toggle-filters">Filters</button>
-            <button id="refresh-dashboard">Refresh Now</button>
-            <span id="refresh-loading" class="inline-loading" style="display:none;">
-              <span class="spinner"></span>
-              <span>Refreshing...</span>
-            </span>
+            <button id="refresh-dashboard" class="refresh-button">
+              <span id="refresh-label">Refresh</span>
+              <span id="refresh-loading" class="button-loading" style="display:none;">
+                <span class="spinner button-spinner"></span>
+                <span>Refreshing...</span>
+              </span>
+            </button>
           </div>
         </div>
         <div id="mywork-filters" class="controls-row" style="display:none;">
@@ -408,6 +411,13 @@ export class DevCommandCenterViewProvider implements vscode.WebviewViewProvider 
             <option value="title_asc">Title A-Z</option>
             <option value="title_desc">Title Z-A</option>
           </select>
+          <div class="button-row">
+            <button id="apply-filters">Apply Filters</button>
+            <span id="filters-loading" class="inline-loading" style="display:none;">
+              <span class="spinner"></span>
+              <span>Applying...</span>
+            </span>
+          </div>
         </div>
         <div id="mywork-summary" class="mywork-summary"></div>
         <div class="info-card">

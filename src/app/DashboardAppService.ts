@@ -60,6 +60,10 @@ export class DashboardAppService {
   private buildSnapshot(): DashboardSnapshot {
     const providers = [...this.lastSnapshots.values()];
     const myWork = providers.flatMap((provider) => provider.workItems);
+    const deployments = providers
+      .flatMap((provider) => provider.deployments ?? [])
+      .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime())
+      .slice(0, 25);
     const badges = computeBadges(myWork);
     const blockedItems = myWork.filter((item) => item.readiness === "blocked");
     const topBlockedReason =
@@ -80,6 +84,7 @@ export class DashboardAppService {
       generatedAt: new Date().toISOString(),
       providers,
       myWork,
+      deployments,
       badges,
       currentRepo: this.currentRepoSnapshot,
       reviewAssistant: {

@@ -3,12 +3,14 @@ body {
   color: var(--vscode-foreground);
   padding: 8px;
   padding-bottom: 70px;
+  --glance-icon-filter: none;
 }
 
 body.theme-force-dark {
   --glance-bg: #151515;
   --glance-fg: #e6e6e6;
   --glance-muted: #bdbdbd;
+  --glance-icon-filter: brightness(0) invert(1);
   background: var(--glance-bg);
   color: var(--glance-fg);
 }
@@ -22,8 +24,18 @@ body.theme-force-light {
   --vscode-input-foreground: #111111;
   --vscode-input-background: #ffffff;
   --vscode-editorWidget-background: #ffffff;
+  --glance-icon-filter: none;
   background: var(--glance-bg);
   color: var(--glance-fg);
+}
+
+body.vscode-dark {
+  --glance-icon-filter: brightness(0) invert(1);
+}
+
+body.vscode-light,
+body.vscode-high-contrast-light {
+  --glance-icon-filter: none;
 }
 
 .header {
@@ -122,6 +134,10 @@ body.theme-force-light {
   display: grid;
   gap: 8px;
   grid-template-columns: 1fr 1fr;
+}
+
+#mywork-filters .button-row {
+  grid-column: 1 / -1;
 }
 
 select,
@@ -232,6 +248,54 @@ input[type="password"] {
   gap: 6px;
   font-size: 12px;
   color: var(--glance-muted, var(--vscode-descriptionForeground));
+}
+
+.button-loading {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.button-spinner {
+  width: 12px;
+  height: 12px;
+  border-width: 2px;
+}
+
+.refresh-button {
+  position: relative;
+  width: 132px;
+  white-space: nowrap;
+}
+
+.refresh-button #refresh-label {
+  display: inline-block;
+  width: 100%;
+  text-align: center;
+  visibility: visible;
+}
+
+.refresh-button .button-loading {
+  position: absolute;
+  inset: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.refresh-button.is-loading {
+  pointer-events: none;
+}
+
+.refresh-button.is-loading #refresh-label {
+  visibility: hidden;
+}
+
+.refresh-button.is-loading .button-loading {
+  opacity: 1;
 }
 
 .spinner {
@@ -356,6 +420,10 @@ input[type="password"] {
 
 #mywork-filters {
   transition: opacity 180ms ease, transform 180ms ease;
+  border: 1px solid var(--vscode-input-border, transparent);
+  border-radius: 8px;
+  padding: 10px;
+  background: color-mix(in srgb, var(--vscode-editorWidget-background) 80%, transparent);
 }
 
 .info-card,
@@ -412,6 +480,12 @@ details.info-card > summary {
   height: 14px;
   vertical-align: text-bottom;
   margin-right: 6px;
+  filter: var(--glance-icon-filter);
+}
+
+.tiny-icon[alt="bitbucket"],
+.tiny-icon[alt="Bitbucket"] {
+  filter: none;
 }
 
 .title-with-logo {

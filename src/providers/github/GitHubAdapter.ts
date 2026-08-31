@@ -22,6 +22,7 @@ export class GitHubAdapter implements ProviderAdapter {
         reachable: false,
         authenticated: false,
         workItems: [],
+        deployments: [],
         warning: "GitHub token not configured."
       };
     }
@@ -60,7 +61,8 @@ export class GitHubAdapter implements ProviderAdapter {
         provider: this.id,
         reachable: true,
         authenticated: true,
-        workItems
+        workItems,
+        deployments: []
       };
       this.cache.set("snapshot", snapshot, 30_000);
       return snapshot;
@@ -144,6 +146,7 @@ function buildFallbackSnapshot(): ProviderSnapshot {
     provider: "github",
     reachable: true,
     authenticated: true,
-    workItems
+    workItems,
+    deployments: []
   };
 }

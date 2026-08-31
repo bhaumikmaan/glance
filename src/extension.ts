@@ -11,7 +11,10 @@ import { SecretStore } from "./services/SecretStore";
 export function activate(context: vscode.ExtensionContext): void {
   const configService = new ConfigService();
   const secretStore = new SecretStore(context.secrets);
-  const currentRepoService = new CurrentRepoService();
+  const currentRepoService = new CurrentRepoService(
+    () => configService.bitbucketBaseUrl,
+    () => secretStore.get("bitbucket.token")
+  );
   const dependencyTracerService = new DependencyTracerService();
   const appService = new DashboardAppService([
     new GitHubAdapter(secretStore, () => configService.githubApiBaseUrl),
