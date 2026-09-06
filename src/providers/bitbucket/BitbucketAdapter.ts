@@ -23,8 +23,7 @@ export class BitbucketAdapter implements ProviderAdapter {
         authenticated: false,
         workItems: [],
         deployments: [],
-        warning:
-          "Bitbucket token not configured. Use access tokens page from your workspace."
+        warning: "Bitbucket token not configured. Use access tokens page from your workspace."
       };
     }
 
@@ -71,33 +70,35 @@ export class BitbucketAdapter implements ProviderAdapter {
       Accept: "application/json"
     });
 
-    const items = await Promise.all((response.values ?? []).map(async (value) => {
-      const blockedReasons = deriveBitbucketBlockedReasons(value);
-      const buildStatus = await this.fetchBuildStatus(
-        baseUrl,
-        token,
-        value.fromRef?.latestCommit
-      );
-      if (buildStatus === "failure") {
-        blockedReasons.unshift("pipelineFailure");
-      }
-      const item: WorkItem = {
-        id: `bb-${value.id}`,
-        provider: "bitbucket",
-        repository: `${value.fromRef?.repository?.project?.key ?? "UNKNOWN"}/${value.fromRef?.repository?.slug ?? "unknown-repo"}`,
-        title: value.title ?? `PR ${value.id}`,
-        url: value.links?.self?.[0]?.href ?? baseUrl,
-        author: value.author?.user?.name ?? "unknown",
-        isMine: role === "AUTHOR",
-        blockedReasons,
-        readiness: deriveReadiness({ blockedReasons }),
-        lastCommitStatus: buildStatus,
-        updatedAt: value.updatedDate
-          ? new Date(value.updatedDate).toISOString()
-          : new Date().toISOString()
-      };
-      return item;
-    }));
+    const items = await Promise.all(
+      (response.values ?? []).map(async (value) => {
+        const blockedReasons = deriveBitbucketBlockedReasons(value);
+        const buildStatus = await this.fetchBuildStatus(
+          baseUrl,
+          token,
+          value.fromRef?.latestCommit
+        );
+        if (buildStatus === "failure") {
+          blockedReasons.unshift("pipelineFailure");
+        }
+        const item: WorkItem = {
+          id: `bb-${value.id}`,
+          provider: "bitbucket",
+          repository: `${value.fromRef?.repository?.project?.key ?? "UNKNOWN"}/${value.fromRef?.repository?.slug ?? "unknown-repo"}`,
+          title: value.title ?? `PR ${value.id}`,
+          url: value.links?.self?.[0]?.href ?? baseUrl,
+          author: value.author?.user?.name ?? "unknown",
+          isMine: role === "AUTHOR",
+          blockedReasons,
+          readiness: deriveReadiness({ blockedReasons }),
+          lastCommitStatus: buildStatus,
+          updatedAt: value.updatedDate
+            ? new Date(value.updatedDate).toISOString()
+            : new Date().toISOString()
+        };
+        return item;
+      })
+    );
     return items;
   }
 
@@ -127,8 +128,12 @@ export class BitbucketAdapter implements ProviderAdapter {
       );
       const states = responses
         .filter(
-          (result): result is PromiseFulfilledResult<{ state?: string; values?: Array<{ state?: string }> }> =>
-            result.status === "fulfilled"
+          (
+            result
+          ): result is PromiseFulfilledResult<{
+            state?: string;
+            values?: Array<{ state?: string }>;
+          }> => result.status === "fulfilled"
         )
         .flatMap((result) => {
           const topState = result.value.state ? [result.value.state] : [];
@@ -138,7 +143,8 @@ export class BitbucketAdapter implements ProviderAdapter {
         .map((state) => state.toUpperCase());
 
       if (states.some((state) => state.includes("FAIL"))) return "failure";
-      if (states.some((state) => state.includes("INPROGRESS") || state.includes("PENDING"))) return "pending";
+      if (states.some((state) => state.includes("INPROGRESS") || state.includes("PENDING")))
+        return "pending";
       if (states.some((state) => state.includes("SUCCESS"))) return "success";
       return "unknown";
     } catch {
@@ -154,29 +160,34 @@ export class BitbucketAdapter implements ProviderAdapter {
       Accept: "application/json"
     });
 
-    const signals = await Promise.all((response.values ?? []).map(async (value) => {
-      const mergeCommit = value.properties?.mergeCommit?.id
-        || value.properties?.mergeResult?.current?.id
-        || value.toRef?.latestCommit;
-      const status = await this.fetchBuildStatus(baseUrl, token, mergeCommit);
-      return {
-        id: `bb-deploy-${value.id}`,
-        provider: "bitbucket",
-        repository: `${value.toRef?.repository?.project?.key ?? "UNKNOWN"}/${value.toRef?.repository?.slug ?? "unknown-repo"}`,
-        title: value.title ? `Merged: ${value.title}` : `Merged PR ${value.id}`,
-        url: value.links?.self?.[0]?.href ?? baseUrl,
-        status,
-        updatedAt: value.closedDate
-          ? new Date(value.closedDate).toISOString()
-          : value.updatedDate
-            ? new Date(value.updatedDate).toISOString()
-            : new Date().toISOString(),
-        environment: "Merged branch"
-      } satisfies DeploymentSignal;
-    }));
+    const signals = await Promise.all(
+      (response.values ?? []).map(async (value) => {
+        const mergeCommit =
+          value.properties?.mergeCommit?.id ||
+          value.properties?.mergeResult?.current?.id ||
+          value.toRef?.latestCommit;
+        const status = await this.fetchBuildStatus(baseUrl, token, mergeCommit);
+        return {
+          id: `bb-deploy-${value.id}`,
+          provider: "bitbucket",
+          repository: `${value.toRef?.repository?.project?.key ?? "UNKNOWN"}/${value.toRef?.repository?.slug ?? "unknown-repo"}`,
+          title: value.title ? `Merged: ${value.title}` : `Merged PR ${value.id}`,
+          url: value.links?.self?.[0]?.href ?? baseUrl,
+          status,
+          updatedAt: value.closedDate
+            ? new Date(value.closedDate).toISOString()
+            : value.updatedDate
+              ? new Date(value.updatedDate).toISOString()
+              : new Date().toISOString(),
+          environment: "Merged branch"
+        } satisfies DeploymentSignal;
+      })
+    );
 
     return signals
-      .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime())
+      .sort(
+        (left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime()
+      )
       .slice(0, 20);
   }
 }
@@ -185,14 +196,11 @@ type BitbucketDashboardResponse = {
   values?: BitbucketDashboardItem[];
 };
 
-function deriveBitbucketBlockedReasons(
-  item: BitbucketDashboardItem
-): BlockedReason[] {
+function deriveBitbucketBlockedReasons(item: BitbucketDashboardItem): BlockedReason[] {
   const reasons: BlockedReason[] = [];
   const hasNeedsWork =
     item.reviewers?.some((reviewer) => reviewer.status === "NEEDS_WORK") ?? false;
-  const hasUnapproved =
-    item.reviewers?.some((reviewer) => reviewer.approved === false) ?? false;
+  const hasUnapproved = item.reviewers?.some((reviewer) => reviewer.approved === false) ?? false;
 
   if (hasNeedsWork) {
     reasons.push("changesRequested");

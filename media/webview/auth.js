@@ -44,7 +44,7 @@
     const authLoading = document.getElementById("auth-loading");
     const authLoadingText = document.getElementById("auth-loading-text");
     let onboardingProvider = null;
-    let authLoadingTimeout;
+    let pendingAuthOperation = null;
 
     function selectedProvider() {
       return onboardingProvider;
@@ -53,15 +53,6 @@
     function setLoading(isLoading, text) {
       if (authLoading) authLoading.style.display = isLoading ? "flex" : "none";
       if (authLoadingText && text) authLoadingText.textContent = text;
-      if (authLoadingTimeout) {
-        window.clearTimeout(authLoadingTimeout);
-        authLoadingTimeout = undefined;
-      }
-      if (isLoading) {
-        authLoadingTimeout = window.setTimeout(() => {
-          if (authLoading) authLoading.style.display = "none";
-        }, 15000);
-      }
     }
 
     function setProvider(provider, reveal = true) {
@@ -81,16 +72,21 @@
       if (onboardingOauthBtn) {
         onboardingOauthBtn.setAttribute("data-provider", onboardingProvider);
         onboardingOauthBtn.textContent =
-          onboardingProvider === "github" ? "Continue with GitHub OAuth" : "Continue with Bitbucket OAuth";
+          onboardingProvider === "github"
+            ? "Continue with GitHub OAuth"
+            : "Continue with Bitbucket OAuth";
       }
       if (onboardingTokenInput) {
         onboardingTokenInput.placeholder =
-          onboardingProvider === "github" ? "Paste GitHub token (ghp_...)" : "Paste Bitbucket token";
+          onboardingProvider === "github"
+            ? "Paste GitHub token (ghp_...)"
+            : "Paste Bitbucket token";
       }
     }
 
     function saveToken(provider, token) {
       if (!token) return;
+      pendingAuthOperation = { type: "save", provider };
       setLoading(true, "Saving token and fetching dashboard...");
       vscode.postMessage({ type: "auth/saveToken", payload: { provider, token } });
     }
@@ -125,9 +121,17 @@
       if (bitbucketTokenInput) bitbucketTokenInput.value = "";
     });
     githubClearButton?.addEventListener("click", () => {
+      pendingAuthOperation = { type: "clear", provider: "github" };
+      setLoading(true, "Removing GitHub connection...");
+      if (githubClearButton) githubClearButton.disabled = true;
+      if (githubClearButton) githubClearButton.textContent = "Removing...";
       vscode.postMessage({ type: "auth/clearToken", payload: { provider: "github" } });
     });
     bitbucketClearButton?.addEventListener("click", () => {
+      pendingAuthOperation = { type: "clear", provider: "bitbucket" };
+      setLoading(true, "Removing Bitbucket connection...");
+      if (bitbucketClearButton) bitbucketClearButton.disabled = true;
+      if (bitbucketClearButton) bitbucketClearButton.textContent = "Removing...";
       vscode.postMessage({ type: "auth/clearToken", payload: { provider: "bitbucket" } });
     });
     githubHelpButton?.addEventListener("click", () => {
@@ -140,10 +144,7 @@
       button.addEventListener("click", () => {
         const provider = button.getAttribute("data-provider");
         if (!provider) return;
-        setLoading(
-          true,
-          "Opening provider sign-in. If OAuth is not provisioned, use token mode."
-        );
+        setLoading(true, "Opening provider sign-in. If OAuth is not provisioned, use token mode.");
         vscode.postMessage({ type: "auth/openOAuth", payload: { provider } });
       });
     });
@@ -155,12 +156,8 @@
     });
     githubUseOAuthButton?.addEventListener("click", () => setSignInView("github", "oauth"));
     githubUseTokenButton?.addEventListener("click", () => setSignInView("github", "token"));
-    bitbucketUseOAuthButton?.addEventListener("click", () =>
-      setSignInView("bitbucket", "oauth")
-    );
-    bitbucketUseTokenButton?.addEventListener("click", () =>
-      setSignInView("bitbucket", "token")
-    );
+    bitbucketUseOAuthButton?.addEventListener("click", () => setSignInView("bitbucket", "oauth"));
+    bitbucketUseTokenButton?.addEventListener("click", () => setSignInView("bitbucket", "token"));
     providerPickBitbucket?.addEventListener("click", () => setProvider("bitbucket", true));
     providerPickGithub?.addEventListener("click", () => setProvider("github", true));
     onboardingSaveBase?.addEventListener("click", () => {
@@ -223,20 +220,46 @@
           : "Status: Not configured";
         setProviderConnectionState("github", payload.github.configured);
       }
+      if (githubClearButton) {
+        githubClearButton.disabled = false;
+        githubClearButton.textContent = "Remove Connection";
+      }
       if (bitbucketStatus && payload?.bitbucket) {
         bitbucketStatus.textContent = payload.bitbucket.configured
           ? "Status: Configured"
           : "Status: Not configured";
         setProviderConnectionState("bitbucket", payload.bitbucket.configured);
       }
+      if (bitbucketClearButton) {
+        bitbucketClearButton.disabled = false;
+        bitbucketClearButton.textContent = "Remove Connection";
+      }
       const configuredProviders = [];
       if (payload?.github?.configured) configuredProviders.push("github");
       if (payload?.bitbucket?.configured) configuredProviders.push("bitbucket");
-      setLoading(false);
+      maybeCompletePendingAuthOperation(payload);
       return configuredProviders;
     }
 
-    return { renderAuthStatus, handleOAuthResult };
+    function maybeCompletePendingAuthOperation(payload) {
+      if (!pendingAuthOperation) {
+        return;
+      }
+      const providerConfigured = Boolean(payload?.[pendingAuthOperation.provider]?.configured);
+      if (pendingAuthOperation.type === "save" && providerConfigured) {
+        pendingAuthOperation = null;
+        setLoading(false);
+      }
+      if (pendingAuthOperation.type === "clear" && !providerConfigured) {
+        pendingAuthOperation = null;
+        setLoading(false);
+      }
+      if (pendingAuthOperation) {
+        setLoading(true);
+      }
+    }
+
+    return { renderAuthStatus, handleOAuthResult, setLoading };
   }
 
   window.Glance = window.Glance || {};

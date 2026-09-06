@@ -6,9 +6,12 @@
       if (reason === "awaitingReviews") return "Awaiting reviews";
       return reason || "None";
     },
-    formatTime(isoString) {
-      const date = new Date(isoString);
-      if (Number.isNaN(date.getTime())) return isoString;
+    formatTime(input) {
+      const raw = String(input ?? "");
+      const numericTs =
+        /^\d+$/.test(raw) && raw.length >= 10 ? Number(raw.length === 10 ? `${raw}000` : raw) : NaN;
+      const date = Number.isFinite(numericTs) ? new Date(numericTs) : new Date(raw);
+      if (Number.isNaN(date.getTime())) return raw;
       return date.toLocaleString();
     },
     escapeHtml(value) {

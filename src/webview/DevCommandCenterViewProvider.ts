@@ -1,7 +1,9 @@
 import * as vscode from "vscode";
 import { URL } from "node:url";
 import { DashboardAppService } from "../app/DashboardAppService";
+import { CursorUsageMetric, CursorUsageTimeframe } from "../domain/types";
 import { ConfigService } from "../services/ConfigService";
+import { CursorUsageService } from "../services/CursorUsageService";
 import { DependencyTracerService } from "../services/DependencyTracerService";
 import { SecretStore } from "../services/SecretStore";
 
@@ -32,7 +34,8 @@ export class DevCommandCenterViewProvider implements vscode.WebviewViewProvider 
     private readonly configService: ConfigService,
     private readonly secretStore: SecretStore,
     private readonly appService: DashboardAppService,
-    private readonly dependencyTracerService: DependencyTracerService
+    private readonly dependencyTracerService: DependencyTracerService,
+    private readonly cursorUsageService: CursorUsageService
   ) {}
 
   resolveWebviewView(
@@ -69,6 +72,7 @@ export class DevCommandCenterViewProvider implements vscode.WebviewViewProvider 
               type: "dashboard/snapshot",
               payload: snapshot
             });
+            await vscode.commands.executeCommand("devCommandCenter.updateUsageStatusBar");
           }
         );
       }
@@ -79,6 +83,7 @@ export class DevCommandCenterViewProvider implements vscode.WebviewViewProvider 
           type: "dashboard/snapshot",
           payload: snapshot
         });
+        await vscode.commands.executeCommand("devCommandCenter.updateUsageStatusBar");
       }
 
       if (typed.type === "auth/saveToken" && typed.payload) {
@@ -94,6 +99,7 @@ export class DevCommandCenterViewProvider implements vscode.WebviewViewProvider 
             type: "dashboard/snapshot",
             payload: snapshot
           });
+          await vscode.commands.executeCommand("devCommandCenter.updateUsageStatusBar");
           await this.postAuthStatus();
         }
       }
@@ -111,6 +117,7 @@ export class DevCommandCenterViewProvider implements vscode.WebviewViewProvider 
             type: "dashboard/snapshot",
             payload: snapshot
           });
+          await vscode.commands.executeCommand("devCommandCenter.updateUsageStatusBar");
           await this.postAuthStatus();
         }
       }
@@ -118,9 +125,7 @@ export class DevCommandCenterViewProvider implements vscode.WebviewViewProvider 
       if (typed.type === "auth/openTokenHelp" && typed.payload) {
         const payload = typed.payload as { provider?: string };
         if (payload.provider === "github") {
-          await vscode.env.openExternal(
-            vscode.Uri.parse("https://github.com/settings/tokens")
-          );
+          await vscode.env.openExternal(vscode.Uri.parse("https://github.com/settings/tokens"));
         }
         if (payload.provider === "bitbucket") {
           const base = this.configService.bitbucketBaseUrl;
@@ -128,17 +133,12 @@ export class DevCommandCenterViewProvider implements vscode.WebviewViewProvider 
           const url = isCloud
             ? "https://bitbucket.org/account/settings/app-passwords/"
             : `${base}/plugins/servlet/oauth/users/access-tokens`;
-          await vscode.env.openExternal(
-            vscode.Uri.parse(url)
-          );
+          await vscode.env.openExternal(vscode.Uri.parse(url));
         }
       }
 
       if (typed.type === "dashboard/openSettings") {
-        await vscode.commands.executeCommand(
-          "workbench.action.openSettings",
-          "devCommandCenter"
-        );
+        await vscode.commands.executeCommand("workbench.action.openSettings", "devCommandCenter");
       }
 
       if (typed.type === "auth/openOAuth" && typed.payload) {
@@ -150,9 +150,7 @@ export class DevCommandCenterViewProvider implements vscode.WebviewViewProvider 
             "GitHub sign-in page opened. Complete sign-in and then paste a token if OAuth callback is not provisioned.";
         }
         if (payload.provider === "bitbucket") {
-          await vscode.env.openExternal(
-            vscode.Uri.parse(this.configService.bitbucketBaseUrl)
-          );
+          await vscode.env.openExternal(vscode.Uri.parse(this.configService.bitbucketBaseUrl));
           statusMessage =
             "Bitbucket sign-in page opened. If OAuth callback is not provisioned, use token mode.";
         }
@@ -176,18 +174,10 @@ export class DevCommandCenterViewProvider implements vscode.WebviewViewProvider 
 
         const section = vscode.workspace.getConfiguration("devCommandCenter");
         if (payload.provider === "github") {
-          await section.update(
-            "github.apiBaseUrl",
-            normalized,
-            vscode.ConfigurationTarget.Global
-          );
+          await section.update("github.apiBaseUrl", normalized, vscode.ConfigurationTarget.Global);
         }
         if (payload.provider === "bitbucket") {
-          await section.update(
-            "bitbucket.baseUrl",
-            normalized,
-            vscode.ConfigurationTarget.Global
-          );
+          await section.update("bitbucket.baseUrl", normalized, vscode.ConfigurationTarget.Global);
         }
         vscode.window.setStatusBarMessage(
           `${payload.provider} base URL updated to ${normalized}`,
@@ -214,6 +204,7 @@ export class DevCommandCenterViewProvider implements vscode.WebviewViewProvider 
           type: "dashboard/snapshot",
           payload: snapshot
         });
+        await vscode.commands.executeCommand("devCommandCenter.updateUsageStatusBar");
         await this.postInitPayload();
       }
 
@@ -229,6 +220,34 @@ export class DevCommandCenterViewProvider implements vscode.WebviewViewProvider 
         });
       }
 
+      if (typed.type === "cursorUsage/refresh") {
+        const snapshot = await this.appService.refreshNow();
+        await this.view?.webview.postMessage({
+          type: "dashboard/snapshot",
+          payload: snapshot
+        });
+        await vscode.commands.executeCommand("devCommandCenter.updateUsageStatusBar");
+      }
+
+      if (typed.type === "cursorUsage/openDashboard") {
+        await vscode.env.openExternal(
+          vscode.Uri.parse(this.cursorUsageService.getUsageDashboardUrl())
+        );
+      }
+
+      if (typed.type === "cursorUsage/setView" && typed.payload) {
+        const payload = typed.payload as {
+          timeframe?: CursorUsageTimeframe;
+          metric?: CursorUsageMetric;
+        };
+        await this.cursorUsageService.setPreferences(payload);
+        const snapshot = await this.appService.refreshNow();
+        await this.view?.webview.postMessage({
+          type: "dashboard/snapshot",
+          payload: snapshot
+        });
+        await vscode.commands.executeCommand("devCommandCenter.updateUsageStatusBar");
+      }
     });
   }
 
@@ -336,6 +355,7 @@ export class DevCommandCenterViewProvider implements vscode.WebviewViewProvider 
     </header>
     <nav class="tabs" id="tabs-nav" style="display:none;">
       <button class="tab-button active" data-tab="mywork-tab">My Work</button>
+      <button class="tab-button" data-tab="cursorusage-tab">Cursor Usage</button>
       <button class="tab-button" data-tab="currentrepo-tab">Current Repository</button>
       <button class="tab-button" data-tab="tools-tab">Tools</button>
     </nav>
@@ -413,6 +433,7 @@ export class DevCommandCenterViewProvider implements vscode.WebviewViewProvider 
           </select>
           <div class="button-row">
             <button id="apply-filters">Apply Filters</button>
+            <button id="clear-filters">Clear Filters</button>
             <span id="filters-loading" class="inline-loading" style="display:none;">
               <span class="spinner"></span>
               <span>Applying...</span>
@@ -420,11 +441,10 @@ export class DevCommandCenterViewProvider implements vscode.WebviewViewProvider 
           </div>
         </div>
         <div id="mywork-summary" class="mywork-summary"></div>
-        <div class="info-card">
-          <h3>Review Assistant</h3>
+        <details class="info-card" open>
+          <summary>Review Assistant</summary>
           <div id="review-assistant-summary" class="muted">Waiting for snapshot...</div>
-          <div id="review-assistant-breaking" class="muted"></div>
-        </div>
+        </details>
         <div class="mywork-sections">
           <details class="info-card" open>
             <summary><img class="tiny-icon" src="${prIconUri}" alt="pr" /> My PRs & Info</summary>
@@ -438,6 +458,53 @@ export class DevCommandCenterViewProvider implements vscode.WebviewViewProvider 
             <summary><img class="tiny-icon" src="${deployIconUri}" alt="deploy" /> Recent Deployments</summary>
             <div id="deployments-list" class="mywork-list">Waiting for first poll...</div>
           </details>
+        </div>
+      </section>
+      <section id="cursorusage-tab" class="tab-panel">
+        <div class="section-header-row">
+          <h2>Cursor Usage</h2>
+          <div>
+            <button id="cursor-usage-refresh">Refresh</button>
+            <button id="open-cursor-usage-dashboard">Usage Dashboard</button>
+          </div>
+        </div>
+        <div id="cursor-usage-data-section">
+          <div class="info-card">
+            <h3>Monthly Usage</h3>
+            <div id="cursor-usage-summary" class="muted">Waiting for snapshot...</div>
+            <div class="usage-progress-shell">
+              <div id="cursor-usage-progress" class="usage-progress-fill"></div>
+            </div>
+          </div>
+          <div class="info-card">
+            <h3>Conversation Insights</h3>
+            <div class="controls-row usage-insights-controls">
+              <select id="cursor-timeframe">
+                <option value="mtd">MTD</option>
+                <option value="30d">30D</option>
+                <option value="7d">7D</option>
+                <option value="1d">1D</option>
+              </select>
+              <select id="cursor-metric">
+                <option value="categories">All Categories</option>
+                <option value="workType">Work Type</option>
+                <option value="intentDistribution">Intent Distribution</option>
+                <option value="taskComplexity">Task Complexity</option>
+                <option value="promptSpecificity">Prompt Specificity</option>
+              </select>
+            </div>
+            <div id="cursor-insights-card" class="cursor-insights-card">
+              <div id="cursor-insights-loading" class="cursor-insights-loading" style="display:none;">
+                <span class="spinner"></span>
+                <span>Loading chart...</span>
+              </div>
+              <div id="cursor-insights-list" class="muted">Waiting for snapshot...</div>
+            </div>
+          </div>
+          <div class="info-card">
+            <h3>Recent Requests</h3>
+            <div id="cursor-recent-requests" class="muted">Waiting for snapshot...</div>
+          </div>
         </div>
       </section>
       <section id="currentrepo-tab" class="tab-panel">
@@ -563,8 +630,7 @@ export class DevCommandCenterViewProvider implements vscode.WebviewViewProvider 
 }
 
 function getNonce(): string {
-  const chars =
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
   let nonce = "";
   for (let i = 0; i < 32; i += 1) {
     nonce += chars.charAt(Math.floor(Math.random() * chars.length));

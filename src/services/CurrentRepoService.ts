@@ -125,8 +125,12 @@ export class CurrentRepoService {
       );
       const states = responses
         .filter(
-          (result): result is PromiseFulfilledResult<{ state?: string; values?: Array<{ state?: string }> }> =>
-            result.status === "fulfilled"
+          (
+            result
+          ): result is PromiseFulfilledResult<{
+            state?: string;
+            values?: Array<{ state?: string }>;
+          }> => result.status === "fulfilled"
         )
         .flatMap((result) => {
           const topState = result.value.state ? [result.value.state] : [];

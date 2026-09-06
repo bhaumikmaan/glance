@@ -6,18 +6,14 @@ const blockedReasonPriority: Record<BlockedReason, number> = {
   awaitingReviews: 1
 };
 
-export function deriveBlockedReason(
-  reasons: BlockedReason[]
-): BlockedReason | undefined {
+export function deriveBlockedReason(reasons: BlockedReason[]): BlockedReason | undefined {
   if (reasons.length === 0) {
     return undefined;
   }
 
   return reasons
     .slice()
-    .sort(
-      (left, right) => blockedReasonPriority[right] - blockedReasonPriority[left]
-    )[0];
+    .sort((left, right) => blockedReasonPriority[right] - blockedReasonPriority[left])[0];
 }
 
 export function deriveReadiness(item: Pick<WorkItem, "blockedReasons">): WorkItem["readiness"] {

@@ -43,6 +43,10 @@ body.vscode-high-contrast-light {
   justify-content: space-between;
   align-items: center;
   gap: 8px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  white-space: nowrap;
+  padding-bottom: 4px;
 }
 
 .header h1 {
@@ -54,6 +58,8 @@ body.vscode-high-contrast-light {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: nowrap;
+  min-width: max-content;
 }
 
 .provider-pills {
@@ -80,9 +86,15 @@ body.vscode-high-contrast-light {
   display: inline-block;
 }
 
-.dot-green { background: #2ea043; }
-.dot-yellow { background: #d29922; }
-.dot-red { background: #cf222e; }
+.dot-green {
+  background: #2ea043;
+}
+.dot-yellow {
+  background: #d29922;
+}
+.dot-red {
+  background: #cf222e;
+}
 
 .icon-button {
   padding: 4px 8px;
@@ -92,6 +104,10 @@ body.vscode-high-contrast-light {
   display: flex;
   gap: 6px;
   margin-top: 10px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  white-space: nowrap;
+  padding-bottom: 4px;
 }
 
 .auth-landing {
@@ -108,6 +124,7 @@ body.vscode-high-contrast-light {
   color: var(--vscode-foreground);
   border-radius: 6px;
   padding: 4px 10px;
+  flex: 0 0 auto;
 }
 
 .tab-button.active {
@@ -127,6 +144,17 @@ body.vscode-high-contrast-light {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  white-space: nowrap;
+  padding-bottom: 4px;
+}
+
+.section-header-row > div {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: max-content;
 }
 
 .controls-row {
@@ -308,8 +336,12 @@ input[type="password"] {
 }
 
 @keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .auth-status {
@@ -419,7 +451,9 @@ input[type="password"] {
 }
 
 #mywork-filters {
-  transition: opacity 180ms ease, transform 180ms ease;
+  transition:
+    opacity 180ms ease,
+    transform 180ms ease;
   border: 1px solid var(--vscode-input-border, transparent);
   border-radius: 8px;
   padding: 10px;
@@ -584,4 +618,149 @@ pre {
   font-size: 12px;
   overflow: auto;
   max-height: 240px;
+}
+
+.usage-progress-shell {
+  margin-top: 8px;
+  width: 100%;
+  height: 18px;
+  border: 1px solid var(--vscode-input-border, transparent);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.usage-progress-fill {
+  height: 100%;
+  width: 0%;
+  min-width: 46px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: var(--vscode-editor-background);
+  background: color-mix(in srgb, var(--vscode-testing-iconPassed) 75%, transparent);
+  transition: width 220ms ease;
+}
+
+.usage-insights-controls {
+  margin-bottom: 8px;
+}
+
+.usage-insights-grid {
+  display: grid;
+  gap: 6px;
+}
+
+.usage-request-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 8px;
+  align-items: center;
+  font-size: 12px;
+  border-bottom: 1px solid var(--vscode-input-border, transparent);
+  padding: 6px 0;
+}
+
+.usage-segment-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.usage-segment-track {
+  width: 100%;
+  height: 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--vscode-input-background) 80%, transparent);
+  overflow: hidden;
+}
+
+.usage-segment-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--vscode-focusBorder) 75%, transparent);
+}
+
+.cursor-insights-card {
+  position: relative;
+}
+
+.cursor-insights-loading {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--vscode-editorWidget-background) 88%, transparent);
+}
+
+#cursor-insights-list.is-loading {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+.usage-pie-layout {
+  display: grid;
+  gap: 10px;
+}
+
+.usage-pie-chart {
+  width: 220px;
+  height: 220px;
+  margin: 0 auto 28px auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.usage-pie-slice {
+  cursor: pointer;
+  transition: opacity 140ms ease;
+}
+
+.usage-pie-chart:hover .usage-pie-slice {
+  opacity: 0.45;
+}
+
+.usage-pie-chart .usage-pie-slice:hover {
+  opacity: 1;
+}
+
+.usage-pie-tooltip {
+  position: absolute;
+  bottom: -22px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: 230px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--vscode-input-border, transparent);
+  background: color-mix(in srgb, var(--vscode-editorWidget-background) 92%, transparent);
+  color: var(--vscode-foreground);
+  font-size: 11px;
+  text-align: center;
+}
+
+.review-assistant-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.review-assistant-table th,
+.review-assistant-table td {
+  text-align: left;
+  padding: 6px 4px;
+  border-bottom: 1px solid var(--vscode-input-border, transparent);
+  vertical-align: top;
+}
+
+.review-assistant-table th {
+  color: var(--glance-muted, var(--vscode-descriptionForeground));
+  font-weight: 600;
 }

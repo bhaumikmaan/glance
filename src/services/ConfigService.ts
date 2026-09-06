@@ -8,17 +8,11 @@ export class ConfigService {
   }
 
   get githubApiBaseUrl(): string {
-    return this.getConfiguration().get<string>(
-      "github.apiBaseUrl",
-      "https://api.github.com"
-    );
+    return this.getConfiguration().get<string>("github.apiBaseUrl", "https://api.github.com");
   }
 
   get bitbucketBaseUrl(): string {
-    return this.getConfiguration().get<string>(
-      "bitbucket.baseUrl",
-      "https://bitbucket.org"
-    );
+    return this.getConfiguration().get<string>("bitbucket.baseUrl", "https://bitbucket.org");
   }
 
   get extraRepositories(): string[] {

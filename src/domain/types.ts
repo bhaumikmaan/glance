@@ -1,11 +1,12 @@
 export type MergeReadiness = "ready" | "blocked" | "pending";
 
-export type BlockedReason =
-  | "pipelineFailure"
-  | "changesRequested"
-  | "awaitingReviews";
+export type BlockedReason = "pipelineFailure" | "changesRequested" | "awaitingReviews";
 
 export type ProviderId = "github" | "bitbucket";
+
+export type CursorUsageTimeframe = "1d" | "7d" | "30d" | "mtd";
+export type CursorUsageMetric =
+  "workType" | "intentDistribution" | "categories" | "taskComplexity" | "promptSpecificity";
 
 export type DeploymentSignal = {
   id: string;
@@ -84,5 +85,36 @@ export type DashboardSnapshot = {
       reason: string;
       url: string;
     }>;
+  };
+  cursorUsage: {
+    authenticated: boolean;
+    reachable: boolean;
+    warning?: string;
+    monthly: {
+      usedCents: number;
+      limitCents: number;
+      remainingCents: number;
+      progressPercent: number;
+      billingCycleStart?: string;
+      billingCycleEnd?: string;
+    };
+    recentRequests: Array<{
+      id: string;
+      timestamp: string;
+      model: string;
+      chargedCents: number;
+      conversationId?: string;
+    }>;
+    conversationInsights: {
+      timeframe: CursorUsageTimeframe;
+      metric: CursorUsageMetric;
+      segments: Array<{
+        label: string;
+        count: number;
+        percentage: number;
+      }>;
+    };
+    usageDashboardUrl: string;
+    lastUpdated?: string;
   };
 };

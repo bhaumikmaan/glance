@@ -85,9 +85,7 @@ export class DependencyTracerService {
     }
   }
 
-  private async fallbackParseManifests(
-    packageOnly: string
-  ): Promise<DependencyTraceResult> {
+  private async fallbackParseManifests(packageOnly: string): Promise<DependencyTraceResult> {
     const files = await vscode.workspace.findFiles(
       "{**/build.gradle,**/build.gradle.kts,**/pom.xml}",
       "**/node_modules/**",

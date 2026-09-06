@@ -84,7 +84,9 @@
     "build": "esbuild src/extension.ts --bundle --platform=node --outfile=dist/extension.js --external:vscode",
     "watch": "esbuild src/extension.ts --bundle --platform=node --outfile=dist/extension.js --external:vscode --watch",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "devDependencies": {
     "@types/node": "^22.13.10",
@@ -93,6 +95,7 @@
     "@typescript-eslint/parser": "^8.67.0",
     "esbuild": "^0.25.9",
     "eslint": "^10.8.1",
+    "prettier": "^3.9.6",
     "typescript": "^5.9.2"
   }
 }
