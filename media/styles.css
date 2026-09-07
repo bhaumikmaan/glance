@@ -169,7 +169,7 @@ body.vscode-high-contrast-light {
 }
 
 select,
-input[type="text"] {
+input[type='text'] {
   width: 100%;
   box-sizing: border-box;
   background: var(--vscode-input-background);
@@ -219,7 +219,7 @@ button {
   padding: 6px 12px;
 }
 
-input[type="password"] {
+input[type='password'] {
   width: 100%;
   box-sizing: border-box;
   background: var(--vscode-input-background);
@@ -517,8 +517,8 @@ details.info-card > summary {
   filter: var(--glance-icon-filter);
 }
 
-.tiny-icon[alt="bitbucket"],
-.tiny-icon[alt="Bitbucket"] {
+.tiny-icon[alt='bitbucket'],
+.tiny-icon[alt='Bitbucket'] {
   filter: none;
 }
 

@@ -1,12 +1,12 @@
-import { getJson } from "../../core/httpClient";
-import { TtlCache } from "../../core/ttlCache";
-import { deriveReadiness } from "../../domain/statusEngine";
-import { BlockedReason, DeploymentSignal, ProviderSnapshot, WorkItem } from "../../domain/types";
-import { SecretStore } from "../../services/SecretStore";
-import { ProviderAdapter } from "../types";
+import { getJson } from '../../core/httpClient';
+import { TtlCache } from '../../core/ttlCache';
+import { deriveReadiness } from '../../domain/statusEngine';
+import { BlockedReason, DeploymentSignal, ProviderSnapshot, WorkItem } from '../../domain/types';
+import { SecretStore } from '../../services/SecretStore';
+import { ProviderAdapter } from '../types';
 
 export class BitbucketAdapter implements ProviderAdapter {
-  readonly id = "bitbucket" as const;
+  readonly id = 'bitbucket' as const;
   private readonly cache = new TtlCache<ProviderSnapshot>();
 
   constructor(
@@ -15,7 +15,7 @@ export class BitbucketAdapter implements ProviderAdapter {
   ) {}
 
   async fetchSnapshot(): Promise<ProviderSnapshot> {
-    const token = await this.secretStore.get("bitbucket.token");
+    const token = await this.secretStore.get('bitbucket.token');
     if (!token) {
       return {
         provider: this.id,
@@ -23,18 +23,18 @@ export class BitbucketAdapter implements ProviderAdapter {
         authenticated: false,
         workItems: [],
         deployments: [],
-        warning: "Bitbucket token not configured. Use access tokens page from your workspace."
+        warning: 'Bitbucket token not configured. Use access tokens page from your workspace.',
       };
     }
 
-    const cached = this.cache.get("snapshot");
+    const cached = this.cache.get('snapshot');
     if (cached) {
       return cached;
     }
 
     try {
-      const authorItems = await this.fetchDashboardItems(token, "AUTHOR");
-      const reviewerItems = await this.fetchDashboardItems(token, "REVIEWER");
+      const authorItems = await this.fetchDashboardItems(token, 'AUTHOR');
+      const reviewerItems = await this.fetchDashboardItems(token, 'REVIEWER');
       const deployments = await this.fetchMergedDeploymentSignals(token);
       const merged = dedupeById([...authorItems, ...reviewerItems]);
 
@@ -43,58 +43,48 @@ export class BitbucketAdapter implements ProviderAdapter {
         reachable: true,
         authenticated: true,
         workItems: merged,
-        deployments
+        deployments,
       };
-      this.cache.set("snapshot", snapshot, 30_000);
+      this.cache.set('snapshot', snapshot, 30_000);
       return snapshot;
     } catch {
       const fallback = buildFallbackSnapshot();
-      this.cache.set("snapshot", fallback, 15_000);
+      this.cache.set('snapshot', fallback, 15_000);
       return {
         ...fallback,
         deployments: [],
-        warning:
-          "Bitbucket API fetch failed. Showing fallback sample data. Verify token and base URL."
+        warning: 'Bitbucket API fetch failed. Showing fallback sample data. Verify token and base URL.',
       };
     }
   }
 
-  private async fetchDashboardItems(
-    token: string,
-    role: "AUTHOR" | "REVIEWER"
-  ): Promise<WorkItem[]> {
+  private async fetchDashboardItems(token: string, role: 'AUTHOR' | 'REVIEWER'): Promise<WorkItem[]> {
     const baseUrl = this.getBaseUrl();
     const endpoint = `${baseUrl}/rest/api/1.0/dashboard/pull-requests?state=OPEN&role=${role}&limit=25`;
     const response = await getJson<BitbucketDashboardResponse>(endpoint, {
       Authorization: `Bearer ${token}`,
-      Accept: "application/json"
+      Accept: 'application/json',
     });
 
     const items = await Promise.all(
       (response.values ?? []).map(async (value) => {
         const blockedReasons = deriveBitbucketBlockedReasons(value);
-        const buildStatus = await this.fetchBuildStatus(
-          baseUrl,
-          token,
-          value.fromRef?.latestCommit
-        );
-        if (buildStatus === "failure") {
-          blockedReasons.unshift("pipelineFailure");
+        const buildStatus = await this.fetchBuildStatus(baseUrl, token, value.fromRef?.latestCommit);
+        if (buildStatus === 'failure') {
+          blockedReasons.unshift('pipelineFailure');
         }
         const item: WorkItem = {
           id: `bb-${value.id}`,
-          provider: "bitbucket",
-          repository: `${value.fromRef?.repository?.project?.key ?? "UNKNOWN"}/${value.fromRef?.repository?.slug ?? "unknown-repo"}`,
+          provider: 'bitbucket',
+          repository: `${value.fromRef?.repository?.project?.key ?? 'UNKNOWN'}/${value.fromRef?.repository?.slug ?? 'unknown-repo'}`,
           title: value.title ?? `PR ${value.id}`,
           url: value.links?.self?.[0]?.href ?? baseUrl,
-          author: value.author?.user?.name ?? "unknown",
-          isMine: role === "AUTHOR",
+          author: value.author?.user?.name ?? 'unknown',
+          isMine: role === 'AUTHOR',
           blockedReasons,
           readiness: deriveReadiness({ blockedReasons }),
           lastCommitStatus: buildStatus,
-          updatedAt: value.updatedDate
-            ? new Date(value.updatedDate).toISOString()
-            : new Date().toISOString()
+          updatedAt: value.updatedDate ? new Date(value.updatedDate).toISOString() : new Date().toISOString(),
         };
         return item;
       })
@@ -106,14 +96,14 @@ export class BitbucketAdapter implements ProviderAdapter {
     baseUrl: string,
     token: string,
     commit?: string
-  ): Promise<WorkItem["lastCommitStatus"]> {
+  ): Promise<WorkItem['lastCommitStatus']> {
     if (!commit) {
-      return "unknown";
+      return 'unknown';
     }
     try {
       const endpoints = [
         `${baseUrl}/rest/build-status/1.0/commits/${commit}`,
-        `${baseUrl}/rest/build-status/latest/commits/${commit}`
+        `${baseUrl}/rest/build-status/latest/commits/${commit}`,
       ];
       const responses = await Promise.allSettled(
         endpoints.map((endpoint) =>
@@ -122,7 +112,7 @@ export class BitbucketAdapter implements ProviderAdapter {
             values?: Array<{ state?: string }>;
           }>(endpoint, {
             Authorization: `Bearer ${token}`,
-            Accept: "application/json"
+            Accept: 'application/json',
           })
         )
       );
@@ -133,22 +123,21 @@ export class BitbucketAdapter implements ProviderAdapter {
           ): result is PromiseFulfilledResult<{
             state?: string;
             values?: Array<{ state?: string }>;
-          }> => result.status === "fulfilled"
+          }> => result.status === 'fulfilled'
         )
         .flatMap((result) => {
           const topState = result.value.state ? [result.value.state] : [];
-          const childStates = (result.value.values ?? []).map((value) => value.state ?? "");
+          const childStates = (result.value.values ?? []).map((value) => value.state ?? '');
           return [...topState, ...childStates];
         })
         .map((state) => state.toUpperCase());
 
-      if (states.some((state) => state.includes("FAIL"))) return "failure";
-      if (states.some((state) => state.includes("INPROGRESS") || state.includes("PENDING")))
-        return "pending";
-      if (states.some((state) => state.includes("SUCCESS"))) return "success";
-      return "unknown";
+      if (states.some((state) => state.includes('FAIL'))) return 'failure';
+      if (states.some((state) => state.includes('INPROGRESS') || state.includes('PENDING'))) return 'pending';
+      if (states.some((state) => state.includes('SUCCESS'))) return 'success';
+      return 'unknown';
     } catch {
-      return "unknown";
+      return 'unknown';
     }
   }
 
@@ -157,20 +146,18 @@ export class BitbucketAdapter implements ProviderAdapter {
     const endpoint = `${baseUrl}/rest/api/1.0/dashboard/pull-requests?state=MERGED&role=AUTHOR&limit=25`;
     const response = await getJson<BitbucketDashboardResponse>(endpoint, {
       Authorization: `Bearer ${token}`,
-      Accept: "application/json"
+      Accept: 'application/json',
     });
 
     const signals = await Promise.all(
       (response.values ?? []).map(async (value) => {
         const mergeCommit =
-          value.properties?.mergeCommit?.id ||
-          value.properties?.mergeResult?.current?.id ||
-          value.toRef?.latestCommit;
+          value.properties?.mergeCommit?.id || value.properties?.mergeResult?.current?.id || value.toRef?.latestCommit;
         const status = await this.fetchBuildStatus(baseUrl, token, mergeCommit);
         return {
           id: `bb-deploy-${value.id}`,
-          provider: "bitbucket",
-          repository: `${value.toRef?.repository?.project?.key ?? "UNKNOWN"}/${value.toRef?.repository?.slug ?? "unknown-repo"}`,
+          provider: 'bitbucket',
+          repository: `${value.toRef?.repository?.project?.key ?? 'UNKNOWN'}/${value.toRef?.repository?.slug ?? 'unknown-repo'}`,
           title: value.title ? `Merged: ${value.title}` : `Merged PR ${value.id}`,
           url: value.links?.self?.[0]?.href ?? baseUrl,
           status,
@@ -179,15 +166,13 @@ export class BitbucketAdapter implements ProviderAdapter {
             : value.updatedDate
               ? new Date(value.updatedDate).toISOString()
               : new Date().toISOString(),
-          environment: "Merged branch"
+          environment: 'Merged branch',
         } satisfies DeploymentSignal;
       })
     );
 
     return signals
-      .sort(
-        (left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime()
-      )
+      .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime())
       .slice(0, 20);
   }
 }
@@ -198,14 +183,13 @@ type BitbucketDashboardResponse = {
 
 function deriveBitbucketBlockedReasons(item: BitbucketDashboardItem): BlockedReason[] {
   const reasons: BlockedReason[] = [];
-  const hasNeedsWork =
-    item.reviewers?.some((reviewer) => reviewer.status === "NEEDS_WORK") ?? false;
+  const hasNeedsWork = item.reviewers?.some((reviewer) => reviewer.status === 'NEEDS_WORK') ?? false;
   const hasUnapproved = item.reviewers?.some((reviewer) => reviewer.approved === false) ?? false;
 
   if (hasNeedsWork) {
-    reasons.push("changesRequested");
+    reasons.push('changesRequested');
   } else if (hasUnapproved) {
-    reasons.push("awaitingReviews");
+    reasons.push('awaitingReviews');
   }
 
   return reasons;
@@ -269,40 +253,40 @@ function dedupeById(items: WorkItem[]): WorkItem[] {
 function buildFallbackSnapshot(): ProviderSnapshot {
   const rawItems: WorkItem[] = [
     {
-      id: "bb-fallback-1",
-      provider: "bitbucket",
-      repository: "platform/analytics-api",
-      title: "Update CODEOWNERS for reviews",
-      url: "https://bitbucket.org",
-      author: "you",
+      id: 'bb-fallback-1',
+      provider: 'bitbucket',
+      repository: 'platform/analytics-api',
+      title: 'Update CODEOWNERS for reviews',
+      url: 'https://bitbucket.org',
+      author: 'you',
       isMine: true,
-      blockedReasons: ["awaitingReviews"],
-      readiness: "blocked",
-      lastCommitStatus: "success",
-      updatedAt: new Date().toISOString()
+      blockedReasons: ['awaitingReviews'],
+      readiness: 'blocked',
+      lastCommitStatus: 'success',
+      updatedAt: new Date().toISOString(),
     },
     {
-      id: "bb-fallback-2",
-      provider: "bitbucket",
-      repository: "platform/web-client",
-      title: "Stabilize release branch",
-      url: "https://bitbucket.org",
-      author: "you",
+      id: 'bb-fallback-2',
+      provider: 'bitbucket',
+      repository: 'platform/web-client',
+      title: 'Stabilize release branch',
+      url: 'https://bitbucket.org',
+      author: 'you',
       isMine: false,
-      blockedReasons: ["changesRequested"],
-      readiness: "blocked",
-      lastCommitStatus: "pending",
-      updatedAt: new Date().toISOString()
-    }
+      blockedReasons: ['changesRequested'],
+      readiness: 'blocked',
+      lastCommitStatus: 'pending',
+      updatedAt: new Date().toISOString(),
+    },
   ];
   const workItems = rawItems.map((item) => ({
     ...item,
-    readiness: deriveReadiness(item)
+    readiness: deriveReadiness(item),
   }));
   return {
-    provider: "bitbucket",
+    provider: 'bitbucket',
     reachable: true,
     authenticated: true,
-    workItems
+    workItems,
   };
 }

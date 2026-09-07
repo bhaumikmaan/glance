@@ -1,12 +1,12 @@
-export type MergeReadiness = "ready" | "blocked" | "pending";
+export type MergeReadiness = 'ready' | 'blocked' | 'pending';
 
-export type BlockedReason = "pipelineFailure" | "changesRequested" | "awaitingReviews";
+export type BlockedReason = 'pipelineFailure' | 'changesRequested' | 'awaitingReviews';
 
-export type ProviderId = "github" | "bitbucket";
+export type ProviderId = 'github' | 'bitbucket';
 
-export type CursorUsageTimeframe = "1d" | "7d" | "30d" | "mtd";
+export type CursorUsageTimeframe = '1d' | '7d' | '30d' | 'mtd';
 export type CursorUsageMetric =
-  "workType" | "intentDistribution" | "categories" | "taskComplexity" | "promptSpecificity";
+  'workType' | 'intentDistribution' | 'categories' | 'taskComplexity' | 'promptSpecificity';
 
 export type DeploymentSignal = {
   id: string;
@@ -14,7 +14,7 @@ export type DeploymentSignal = {
   repository: string;
   title: string;
   url: string;
-  status: "success" | "failure" | "pending" | "unknown";
+  status: 'success' | 'failure' | 'pending' | 'unknown';
   updatedAt: string;
   environment?: string;
 };
@@ -29,7 +29,7 @@ export type WorkItem = {
   isMine?: boolean;
   readiness: MergeReadiness;
   blockedReasons: BlockedReason[];
-  lastCommitStatus: "success" | "failure" | "pending" | "unknown";
+  lastCommitStatus: 'success' | 'failure' | 'pending' | 'unknown';
   updatedAt: string;
   queuePosition?: number;
 };
@@ -66,7 +66,7 @@ export type DashboardSnapshot = {
     coreBranches: Array<{
       name: string;
       exists: boolean;
-      status: "success" | "failure" | "pending" | "unknown";
+      status: 'success' | 'failure' | 'pending' | 'unknown';
     }>;
     recentBranches: Array<{
       name: string;

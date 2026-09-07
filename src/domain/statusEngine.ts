@@ -1,9 +1,9 @@
-import { BlockedReason, DashboardSnapshot, WorkItem } from "./types";
+import { BlockedReason, DashboardSnapshot, WorkItem } from './types';
 
 const blockedReasonPriority: Record<BlockedReason, number> = {
   pipelineFailure: 3,
   changesRequested: 2,
-  awaitingReviews: 1
+  awaitingReviews: 1,
 };
 
 export function deriveBlockedReason(reasons: BlockedReason[]): BlockedReason | undefined {
@@ -11,36 +11,34 @@ export function deriveBlockedReason(reasons: BlockedReason[]): BlockedReason | u
     return undefined;
   }
 
-  return reasons
-    .slice()
-    .sort((left, right) => blockedReasonPriority[right] - blockedReasonPriority[left])[0];
+  return reasons.slice().sort((left, right) => blockedReasonPriority[right] - blockedReasonPriority[left])[0];
 }
 
-export function deriveReadiness(item: Pick<WorkItem, "blockedReasons">): WorkItem["readiness"] {
-  if (item.blockedReasons.includes("pipelineFailure")) {
-    return "blocked";
+export function deriveReadiness(item: Pick<WorkItem, 'blockedReasons'>): WorkItem['readiness'] {
+  if (item.blockedReasons.includes('pipelineFailure')) {
+    return 'blocked';
   }
-  if (item.blockedReasons.includes("changesRequested")) {
-    return "blocked";
+  if (item.blockedReasons.includes('changesRequested')) {
+    return 'blocked';
   }
-  if (item.blockedReasons.includes("awaitingReviews")) {
-    return "pending";
+  if (item.blockedReasons.includes('awaitingReviews')) {
+    return 'pending';
   }
-  return "ready";
+  return 'ready';
 }
 
-export function computeBadges(items: WorkItem[]): DashboardSnapshot["badges"] {
+export function computeBadges(items: WorkItem[]): DashboardSnapshot['badges'] {
   let red = 0;
   let yellow = 0;
   let green = 0;
 
   for (const item of items) {
-    if (item.readiness === "blocked") {
+    if (item.readiness === 'blocked') {
       red += 1;
       continue;
     }
 
-    if (item.readiness === "pending") {
+    if (item.readiness === 'pending') {
       yellow += 1;
       continue;
     }
@@ -53,11 +51,11 @@ export function computeBadges(items: WorkItem[]): DashboardSnapshot["badges"] {
 
 export function blockedReasonLabel(reason: BlockedReason): string {
   switch (reason) {
-    case "pipelineFailure":
-      return "Pipeline failure";
-    case "changesRequested":
-      return "Changes requested";
-    case "awaitingReviews":
-      return "Awaiting reviews";
+    case 'pipelineFailure':
+      return 'Pipeline failure';
+    case 'changesRequested':
+      return 'Changes requested';
+    case 'awaitingReviews':
+      return 'Awaiting reviews';
   }
 }

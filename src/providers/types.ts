@@ -1,6 +1,6 @@
-import { ProviderSnapshot } from "../domain/types";
+import { ProviderSnapshot } from '../domain/types';
 
 export interface ProviderAdapter {
-  readonly id: "github" | "bitbucket";
+  readonly id: 'github' | 'bitbucket';
   fetchSnapshot(): Promise<ProviderSnapshot>;
 }

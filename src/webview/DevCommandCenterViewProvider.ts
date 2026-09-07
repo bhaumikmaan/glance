@@ -1,11 +1,11 @@
-import * as vscode from "vscode";
-import { URL } from "node:url";
-import { DashboardAppService } from "../app/DashboardAppService";
-import { CursorUsageMetric, CursorUsageTimeframe } from "../domain/types";
-import { ConfigService } from "../services/ConfigService";
-import { CursorUsageService } from "../services/CursorUsageService";
-import { DependencyTracerService } from "../services/DependencyTracerService";
-import { SecretStore } from "../services/SecretStore";
+import * as vscode from 'vscode';
+import { URL } from 'node:url';
+import { DashboardAppService } from '../app/DashboardAppService';
+import { CursorUsageMetric, CursorUsageTimeframe } from '../domain/types';
+import { ConfigService } from '../services/ConfigService';
+import { CursorUsageService } from '../services/CursorUsageService';
+import { DependencyTracerService } from '../services/DependencyTracerService';
+import { SecretStore } from '../services/SecretStore';
 
 type DashboardInitPayload = {
   pollingIntervalSeconds: number;
@@ -25,7 +25,7 @@ type AuthStatusPayload = {
 };
 
 export class DevCommandCenterViewProvider implements vscode.WebviewViewProvider {
-  public static readonly viewType = "devCommandCenter.sidebarView";
+  public static readonly viewType = 'devCommandCenter.sidebarView';
 
   private view?: vscode.WebviewView;
 
@@ -48,194 +48,175 @@ export class DevCommandCenterViewProvider implements vscode.WebviewViewProvider 
     this.view = webviewView;
     webviewView.webview.options = {
       enableScripts: true,
-      localResourceRoots: [vscode.Uri.joinPath(this.extensionUri, "media")]
+      localResourceRoots: [vscode.Uri.joinPath(this.extensionUri, 'media')],
     };
 
     webviewView.webview.html = this.getHtml(webviewView.webview);
 
     webviewView.webview.onDidReceiveMessage(async (message: unknown) => {
-      if (!message || typeof message !== "object") {
+      if (!message || typeof message !== 'object') {
         return;
       }
 
       const typed = message as { type?: string; payload?: unknown };
-      if (typed.type === "dashboard/ready") {
+      if (typed.type === 'dashboard/ready') {
         void this.postInitPayload();
         void this.postAuthStatus();
-        this.appService.start(
-          this.configService.pollingIntervalSeconds * 1000,
-          async (snapshot) => {
-            if (!this.view) {
-              return;
-            }
-            await this.view.webview.postMessage({
-              type: "dashboard/snapshot",
-              payload: snapshot
-            });
-            await vscode.commands.executeCommand("devCommandCenter.updateUsageStatusBar");
+        this.appService.start(this.configService.pollingIntervalSeconds * 1000, async (snapshot) => {
+          if (!this.view) {
+            return;
           }
-        );
+          await this.view.webview.postMessage({
+            type: 'dashboard/snapshot',
+            payload: snapshot,
+          });
+          await vscode.commands.executeCommand('devCommandCenter.updateUsageStatusBar');
+        });
       }
 
-      if (typed.type === "dashboard/refresh") {
+      if (typed.type === 'dashboard/refresh') {
         const snapshot = await this.appService.refreshNow();
         await this.view?.webview.postMessage({
-          type: "dashboard/snapshot",
-          payload: snapshot
+          type: 'dashboard/snapshot',
+          payload: snapshot,
         });
-        await vscode.commands.executeCommand("devCommandCenter.updateUsageStatusBar");
+        await vscode.commands.executeCommand('devCommandCenter.updateUsageStatusBar');
       }
 
-      if (typed.type === "auth/saveToken" && typed.payload) {
+      if (typed.type === 'auth/saveToken' && typed.payload) {
         const payload = typed.payload as { provider?: string; token?: string };
         if (payload.provider && payload.token) {
           await this.secretStore.store(`${payload.provider}.token`, payload.token);
-          vscode.window.setStatusBarMessage(
-            `${payload.provider} token saved in SecretStorage.`,
-            7000
-          );
+          vscode.window.setStatusBarMessage(`${payload.provider} token saved in SecretStorage.`, 7000);
           const snapshot = await this.appService.refreshNow();
           await this.view?.webview.postMessage({
-            type: "dashboard/snapshot",
-            payload: snapshot
+            type: 'dashboard/snapshot',
+            payload: snapshot,
           });
-          await vscode.commands.executeCommand("devCommandCenter.updateUsageStatusBar");
+          await vscode.commands.executeCommand('devCommandCenter.updateUsageStatusBar');
           await this.postAuthStatus();
         }
       }
 
-      if (typed.type === "auth/clearToken" && typed.payload) {
+      if (typed.type === 'auth/clearToken' && typed.payload) {
         const payload = typed.payload as { provider?: string };
         if (payload.provider) {
           await this.secretStore.delete(`${payload.provider}.token`);
-          vscode.window.setStatusBarMessage(
-            `${payload.provider} token removed from SecretStorage.`,
-            7000
-          );
+          vscode.window.setStatusBarMessage(`${payload.provider} token removed from SecretStorage.`, 7000);
           const snapshot = await this.appService.refreshNow();
           await this.view?.webview.postMessage({
-            type: "dashboard/snapshot",
-            payload: snapshot
+            type: 'dashboard/snapshot',
+            payload: snapshot,
           });
-          await vscode.commands.executeCommand("devCommandCenter.updateUsageStatusBar");
+          await vscode.commands.executeCommand('devCommandCenter.updateUsageStatusBar');
           await this.postAuthStatus();
         }
       }
 
-      if (typed.type === "auth/openTokenHelp" && typed.payload) {
+      if (typed.type === 'auth/openTokenHelp' && typed.payload) {
         const payload = typed.payload as { provider?: string };
-        if (payload.provider === "github") {
-          await vscode.env.openExternal(vscode.Uri.parse("https://github.com/settings/tokens"));
+        if (payload.provider === 'github') {
+          await vscode.env.openExternal(vscode.Uri.parse('https://github.com/settings/tokens'));
         }
-        if (payload.provider === "bitbucket") {
+        if (payload.provider === 'bitbucket') {
           const base = this.configService.bitbucketBaseUrl;
-          const isCloud = base.includes("bitbucket.org");
+          const isCloud = base.includes('bitbucket.org');
           const url = isCloud
-            ? "https://bitbucket.org/account/settings/app-passwords/"
+            ? 'https://bitbucket.org/account/settings/app-passwords/'
             : `${base}/plugins/servlet/oauth/users/access-tokens`;
           await vscode.env.openExternal(vscode.Uri.parse(url));
         }
       }
 
-      if (typed.type === "dashboard/openSettings") {
-        await vscode.commands.executeCommand("workbench.action.openSettings", "devCommandCenter");
+      if (typed.type === 'dashboard/openSettings') {
+        await vscode.commands.executeCommand('workbench.action.openSettings', 'devCommandCenter');
       }
 
-      if (typed.type === "auth/openOAuth" && typed.payload) {
+      if (typed.type === 'auth/openOAuth' && typed.payload) {
         const payload = typed.payload as { provider?: string };
-        let statusMessage = "OAuth sign-in could not be opened. Use token mode.";
-        if (payload.provider === "github") {
-          await vscode.env.openExternal(vscode.Uri.parse("https://github.com/login"));
+        let statusMessage = 'OAuth sign-in could not be opened. Use token mode.';
+        if (payload.provider === 'github') {
+          await vscode.env.openExternal(vscode.Uri.parse('https://github.com/login'));
           statusMessage =
-            "GitHub sign-in page opened. Complete sign-in and then paste a token if OAuth callback is not provisioned.";
+            'GitHub sign-in page opened. Complete sign-in and then paste a token if OAuth callback is not provisioned.';
         }
-        if (payload.provider === "bitbucket") {
+        if (payload.provider === 'bitbucket') {
           await vscode.env.openExternal(vscode.Uri.parse(this.configService.bitbucketBaseUrl));
-          statusMessage =
-            "Bitbucket sign-in page opened. If OAuth callback is not provisioned, use token mode.";
+          statusMessage = 'Bitbucket sign-in page opened. If OAuth callback is not provisioned, use token mode.';
         }
         await this.view?.webview.postMessage({
-          type: "auth/oauthResult",
-          payload: { ok: true, message: statusMessage }
+          type: 'auth/oauthResult',
+          payload: { ok: true, message: statusMessage },
         });
         vscode.window.setStatusBarMessage(statusMessage, 8000);
       }
 
-      if (typed.type === "config/updateBaseUrl" && typed.payload) {
+      if (typed.type === 'config/updateBaseUrl' && typed.payload) {
         const payload = typed.payload as { provider?: string; baseUrl?: string };
         if (!payload.provider || !payload.baseUrl) {
           return;
         }
         const normalized = normalizeBaseUrl(payload.provider, payload.baseUrl);
         if (!normalized) {
-          vscode.window.showWarningMessage("Invalid base URL provided.");
+          vscode.window.showWarningMessage('Invalid base URL provided.');
           return;
         }
 
-        const section = vscode.workspace.getConfiguration("devCommandCenter");
-        if (payload.provider === "github") {
-          await section.update("github.apiBaseUrl", normalized, vscode.ConfigurationTarget.Global);
+        const section = vscode.workspace.getConfiguration('devCommandCenter');
+        if (payload.provider === 'github') {
+          await section.update('github.apiBaseUrl', normalized, vscode.ConfigurationTarget.Global);
         }
-        if (payload.provider === "bitbucket") {
-          await section.update("bitbucket.baseUrl", normalized, vscode.ConfigurationTarget.Global);
+        if (payload.provider === 'bitbucket') {
+          await section.update('bitbucket.baseUrl', normalized, vscode.ConfigurationTarget.Global);
         }
-        vscode.window.setStatusBarMessage(
-          `${payload.provider} base URL updated to ${normalized}`,
-          8000
-        );
+        vscode.window.setStatusBarMessage(`${payload.provider} base URL updated to ${normalized}`, 8000);
         await this.postInitPayload();
       }
 
-      if (typed.type === "config/updateDefaultBranch" && typed.payload) {
+      if (typed.type === 'config/updateDefaultBranch' && typed.payload) {
         const payload = typed.payload as { branch?: string };
         const branch = payload.branch?.trim();
         if (!branch) {
           return;
         }
-        const section = vscode.workspace.getConfiguration("devCommandCenter");
-        await section.update(
-          "currentRepo.defaultBranch",
-          branch,
-          vscode.ConfigurationTarget.Workspace
-        );
+        const section = vscode.workspace.getConfiguration('devCommandCenter');
+        await section.update('currentRepo.defaultBranch', branch, vscode.ConfigurationTarget.Workspace);
         vscode.window.setStatusBarMessage(`Default branch updated to ${branch}`, 7000);
         const snapshot = await this.appService.refreshNow();
         await this.view?.webview.postMessage({
-          type: "dashboard/snapshot",
-          payload: snapshot
+          type: 'dashboard/snapshot',
+          payload: snapshot,
         });
-        await vscode.commands.executeCommand("devCommandCenter.updateUsageStatusBar");
+        await vscode.commands.executeCommand('devCommandCenter.updateUsageStatusBar');
         await this.postInitPayload();
       }
 
-      if (typed.type === "tools/runDependencyTrace" && typed.payload) {
+      if (typed.type === 'tools/runDependencyTrace' && typed.payload) {
         const payload = typed.payload as { dependency?: string };
         if (!payload.dependency) {
           return;
         }
         const result = await this.dependencyTracerService.trace(payload.dependency);
         await this.view?.webview.postMessage({
-          type: "tools/dependencyTraceResult",
-          payload: result
+          type: 'tools/dependencyTraceResult',
+          payload: result,
         });
       }
 
-      if (typed.type === "cursorUsage/refresh") {
+      if (typed.type === 'cursorUsage/refresh') {
         const snapshot = await this.appService.refreshNow();
         await this.view?.webview.postMessage({
-          type: "dashboard/snapshot",
-          payload: snapshot
+          type: 'dashboard/snapshot',
+          payload: snapshot,
         });
-        await vscode.commands.executeCommand("devCommandCenter.updateUsageStatusBar");
+        await vscode.commands.executeCommand('devCommandCenter.updateUsageStatusBar');
       }
 
-      if (typed.type === "cursorUsage/openDashboard") {
-        await vscode.env.openExternal(
-          vscode.Uri.parse(this.cursorUsageService.getUsageDashboardUrl())
-        );
+      if (typed.type === 'cursorUsage/openDashboard') {
+        await vscode.env.openExternal(vscode.Uri.parse(this.cursorUsageService.getUsageDashboardUrl()));
       }
 
-      if (typed.type === "cursorUsage/setView" && typed.payload) {
+      if (typed.type === 'cursorUsage/setView' && typed.payload) {
         const payload = typed.payload as {
           timeframe?: CursorUsageTimeframe;
           metric?: CursorUsageMetric;
@@ -243,10 +224,10 @@ export class DevCommandCenterViewProvider implements vscode.WebviewViewProvider 
         await this.cursorUsageService.setPreferences(payload);
         const snapshot = await this.appService.refreshNow();
         await this.view?.webview.postMessage({
-          type: "dashboard/snapshot",
-          payload: snapshot
+          type: 'dashboard/snapshot',
+          payload: snapshot,
         });
-        await vscode.commands.executeCommand("devCommandCenter.updateUsageStatusBar");
+        await vscode.commands.executeCommand('devCommandCenter.updateUsageStatusBar');
       }
     });
   }
@@ -261,12 +242,12 @@ export class DevCommandCenterViewProvider implements vscode.WebviewViewProvider 
       githubApiBaseUrl: this.configService.githubApiBaseUrl,
       bitbucketBaseUrl: this.configService.bitbucketBaseUrl,
       extraRepositories: this.configService.extraRepositories,
-      defaultBranch: this.configService.defaultBranch
+      defaultBranch: this.configService.defaultBranch,
     };
 
     await this.view.webview.postMessage({
-      type: "dashboard/init",
-      payload
+      type: 'dashboard/init',
+      payload,
     });
   }
 
@@ -274,58 +255,38 @@ export class DevCommandCenterViewProvider implements vscode.WebviewViewProvider 
     if (!this.view) {
       return;
     }
-    const github = await this.secretStore.get("github.token");
-    const bitbucket = await this.secretStore.get("bitbucket.token");
+    const github = await this.secretStore.get('github.token');
+    const bitbucket = await this.secretStore.get('bitbucket.token');
     const payload: AuthStatusPayload = {
       github: { configured: Boolean(github) },
-      bitbucket: { configured: Boolean(bitbucket) }
+      bitbucket: { configured: Boolean(bitbucket) },
     };
     await this.view.webview.postMessage({
-      type: "auth/status",
-      payload
+      type: 'auth/status',
+      payload,
     });
   }
 
   private getHtml(webview: vscode.Webview): string {
-    const scriptUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this.extensionUri, "media", "main.js")
-    );
-    const utilsScriptUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this.extensionUri, "media", "webview", "utils.js")
-    );
-    const tabsScriptUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this.extensionUri, "media", "webview", "tabs.js")
-    );
-    const authScriptUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this.extensionUri, "media", "webview", "auth.js")
-    );
+    const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'media', 'main.js'));
+    const utilsScriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'media', 'webview', 'utils.js'));
+    const tabsScriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'media', 'webview', 'tabs.js'));
+    const authScriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'media', 'webview', 'auth.js'));
     const myWorkScriptUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this.extensionUri, "media", "webview", "mywork.js")
+      vscode.Uri.joinPath(this.extensionUri, 'media', 'webview', 'mywork.js')
     );
     const companionScriptUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this.extensionUri, "media", "webview", "companion.js")
+      vscode.Uri.joinPath(this.extensionUri, 'media', 'webview', 'companion.js')
     );
-    const githubIconUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this.extensionUri, "media", "assets", "github.svg")
-    );
+    const githubIconUri = webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'media', 'assets', 'github.svg'));
     const bitbucketIconUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this.extensionUri, "media", "assets", "bitbucket.svg")
+      vscode.Uri.joinPath(this.extensionUri, 'media', 'assets', 'bitbucket.svg')
     );
-    const prIconUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this.extensionUri, "media", "assets", "pr.svg")
-    );
-    const reviewIconUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this.extensionUri, "media", "assets", "review.svg")
-    );
-    const deployIconUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this.extensionUri, "media", "assets", "deploy.svg")
-    );
-    const glanceLogoUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this.extensionUri, "media", "assets", "glance.svg")
-    );
-    const stylesUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this.extensionUri, "media", "styles.css")
-    );
+    const prIconUri = webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'media', 'assets', 'pr.svg'));
+    const reviewIconUri = webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'media', 'assets', 'review.svg'));
+    const deployIconUri = webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'media', 'assets', 'deploy.svg'));
+    const glanceLogoUri = webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'media', 'assets', 'glance.svg'));
+    const stylesUri = webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'media', 'styles.css'));
     const nonce = getNonce();
 
     return `<!doctype html>
@@ -630,8 +591,8 @@ export class DevCommandCenterViewProvider implements vscode.WebviewViewProvider 
 }
 
 function getNonce(): string {
-  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-  let nonce = "";
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let nonce = '';
   for (let i = 0; i < 32; i += 1) {
     nonce += chars.charAt(Math.floor(Math.random() * chars.length));
   }
@@ -643,15 +604,12 @@ function normalizeBaseUrl(provider: string, raw: string): string | undefined {
   if (!trimmed) {
     return undefined;
   }
-  const withScheme =
-    trimmed.startsWith("http://") || trimmed.startsWith("https://")
-      ? trimmed
-      : `https://${trimmed}`;
+  const withScheme = trimmed.startsWith('http://') || trimmed.startsWith('https://') ? trimmed : `https://${trimmed}`;
   try {
     const url = new URL(withScheme);
-    if (provider === "github") {
-      if (url.hostname === "github.com") {
-        return "https://api.github.com";
+    if (provider === 'github') {
+      if (url.hostname === 'github.com') {
+        return 'https://api.github.com';
       }
     }
     return `${url.protocol}//${url.host}`;

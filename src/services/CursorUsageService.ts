@@ -1,35 +1,32 @@
-import * as fs from "node:fs";
-import * as os from "node:os";
-import * as path from "node:path";
-import { execFile as execFileCallback } from "node:child_process";
-import { DatabaseSync } from "node:sqlite";
-import { promisify } from "node:util";
-import { CursorUsageMetric, CursorUsageTimeframe, DashboardSnapshot } from "../domain/types";
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
+import { execFile as execFileCallback } from 'node:child_process';
+import { DatabaseSync } from 'node:sqlite';
+import { promisify } from 'node:util';
+import { CursorUsageMetric, CursorUsageTimeframe, DashboardSnapshot } from '../domain/types';
 
 const execFile = promisify(execFileCallback);
 
-const USAGE_SUMMARY_URL = "https://cursor.com/api/usage-summary";
-const TEAMS_URL = "https://cursor.com/api/dashboard/teams";
-const FILTERED_USAGE_EVENTS_URL = "https://cursor.com/api/dashboard/get-filtered-usage-events";
-const CLASSIFICATION_URL = "https://cursor.com/api/v2/analytics/team/conversation-classification";
-const SEGMENTS_URL = "https://cursor.com/api/v2/analytics/team/conversation-segments";
-const USAGE_DASHBOARD_URL = "https://cursor.com/dashboard/usage";
-const ACCESS_TOKEN_KEY = "cursorAuth/accessToken";
+const USAGE_SUMMARY_URL = 'https://cursor.com/api/usage-summary';
+const TEAMS_URL = 'https://cursor.com/api/dashboard/teams';
+const FILTERED_USAGE_EVENTS_URL = 'https://cursor.com/api/dashboard/get-filtered-usage-events';
+const CLASSIFICATION_URL = 'https://cursor.com/api/v2/analytics/team/conversation-classification';
+const SEGMENTS_URL = 'https://cursor.com/api/v2/analytics/team/conversation-segments';
+const USAGE_DASHBOARD_URL = 'https://cursor.com/dashboard/usage';
+const ACCESS_TOKEN_KEY = 'cursorAuth/accessToken';
 
 type HistogramItem = { label: string; count: number };
 
-type SnapshotShape = DashboardSnapshot["cursorUsage"];
+type SnapshotShape = DashboardSnapshot['cursorUsage'];
 
 export class CursorUsageService {
-  private selectedTimeframe: CursorUsageTimeframe = "mtd";
-  private selectedMetric: CursorUsageMetric = "categories";
+  private selectedTimeframe: CursorUsageTimeframe = 'mtd';
+  private selectedMetric: CursorUsageMetric = 'categories';
   private cached?: SnapshotShape;
   private lastAuthError?: string;
 
-  async setPreferences(payload: {
-    timeframe?: CursorUsageTimeframe;
-    metric?: CursorUsageMetric;
-  }): Promise<void> {
+  async setPreferences(payload: { timeframe?: CursorUsageTimeframe; metric?: CursorUsageMetric }): Promise<void> {
     if (payload.timeframe) {
       this.selectedTimeframe = payload.timeframe;
     }
@@ -55,17 +52,17 @@ export class CursorUsageService {
           startDate: billingCycleStart.getTime(),
           endDate: billingCycleEnd.getTime(),
           page: 1,
-          pageSize: 3
+          pageSize: 3,
         }),
         this.fetchInsights(authHeaders, CLASSIFICATION_URL, this.selectedTimeframe),
-        this.fetchInsights(authHeaders, SEGMENTS_URL, this.selectedTimeframe)
+        this.fetchInsights(authHeaders, SEGMENTS_URL, this.selectedTimeframe),
       ]);
 
       const normalized = this.buildSnapshot({
         usageSummary,
         recentEvents: recentResponse.usageEventsDisplay,
         classificationRaw,
-        segmentsRaw
+        segmentsRaw,
       });
       this.cached = normalized;
       this.lastAuthError = undefined;
@@ -77,7 +74,7 @@ export class CursorUsageService {
         ...base,
         authenticated: false,
         reachable: false,
-        warning: `Cursor usage unavailable: ${message}`
+        warning: `Cursor usage unavailable: ${message}`,
       };
     }
   }
@@ -97,15 +94,14 @@ export class CursorUsageService {
     const usedCents = payload.usageSummary.usedCents;
     const limitCents = payload.usageSummary.limitCents;
     const remainingCents = payload.usageSummary.remainingCents;
-    const progressPercent =
-      limitCents > 0 ? Math.max(0, Math.min(100, Math.round((usedCents / limitCents) * 100))) : 0;
+    const progressPercent = limitCents > 0 ? Math.max(0, Math.min(100, Math.round((usedCents / limitCents) * 100))) : 0;
 
     const recentRequests = payload.recentEvents.map((event, index) => ({
-      id: `${String(event.timestamp ?? "unknown")}-${index}`,
+      id: `${String(event.timestamp ?? 'unknown')}-${index}`,
       timestamp: String(event.timestamp ?? new Date().toISOString()),
-      model: String(event.model ?? "Unknown"),
+      model: String(event.model ?? 'Unknown'),
       chargedCents: numberOrZero(event.chargedCents),
-      conversationId: typeof event.conversationId === "string" ? event.conversationId : undefined
+      conversationId: typeof event.conversationId === 'string' ? event.conversationId : undefined,
     }));
 
     const classification = parseClassification(payload.classificationRaw);
@@ -122,7 +118,7 @@ export class CursorUsageService {
         remainingCents,
         progressPercent,
         billingCycleStart: payload.usageSummary.billingCycleStart,
-        billingCycleEnd: payload.usageSummary.billingCycleEnd
+        billingCycleEnd: payload.usageSummary.billingCycleEnd,
       },
       recentRequests,
       conversationInsights: {
@@ -131,11 +127,11 @@ export class CursorUsageService {
         segments: selected.map((item) => ({
           label: item.label,
           count: item.count,
-          percentage: total > 0 ? Number(((item.count / total) * 100).toFixed(1)) : 0
-        }))
+          percentage: total > 0 ? Number(((item.count / total) * 100).toFixed(1)) : 0,
+        })),
       },
       usageDashboardUrl: USAGE_DASHBOARD_URL,
-      lastUpdated: new Date().toISOString()
+      lastUpdated: new Date().toISOString(),
     };
   }
 
@@ -147,15 +143,15 @@ export class CursorUsageService {
         usedCents: 0,
         limitCents: 0,
         remainingCents: 0,
-        progressPercent: 0
+        progressPercent: 0,
       },
       recentRequests: [],
       conversationInsights: {
         timeframe: this.selectedTimeframe,
         metric: this.selectedMetric,
-        segments: []
+        segments: [],
       },
-      usageDashboardUrl: USAGE_DASHBOARD_URL
+      usageDashboardUrl: USAGE_DASHBOARD_URL,
     };
   }
 
@@ -167,8 +163,8 @@ export class CursorUsageService {
     billingCycleEnd: string;
   }> {
     const data = await this.fetchJson(USAGE_SUMMARY_URL, {
-      method: "GET",
-      headers: authHeaders
+      method: 'GET',
+      headers: authHeaders,
     });
     const root = asRecord(data);
     const individualUsage = asRecord(root.individualUsage);
@@ -179,19 +175,19 @@ export class CursorUsageService {
       limitCents: numberOrZero(overall.limit),
       remainingCents: numberOrZero(overall.remaining),
       billingCycleStart: String(root.billingCycleStart ?? new Date().toISOString()),
-      billingCycleEnd: String(root.billingCycleEnd ?? new Date().toISOString())
+      billingCycleEnd: String(root.billingCycleEnd ?? new Date().toISOString()),
     };
   }
 
   private async fetchTeamId(authHeaders: Record<string, string>): Promise<number> {
     const data = await this.fetchJson(TEAMS_URL, {
-      method: "POST",
+      method: 'POST',
       headers: {
         ...authHeaders,
-        "Content-Type": "application/json",
-        Origin: "https://cursor.com"
+        'Content-Type': 'application/json',
+        Origin: 'https://cursor.com',
       },
-      body: "{}"
+      body: '{}',
     });
     const record = asRecord(data);
     const teams = Array.isArray(record.teams) ? record.teams : [];
@@ -213,13 +209,13 @@ export class CursorUsageService {
     }
   ): Promise<{ usageEventsDisplay: Array<Record<string, unknown>> }> {
     const data = await this.fetchJson(FILTERED_USAGE_EVENTS_URL, {
-      method: "POST",
+      method: 'POST',
       headers: {
         ...authHeaders,
-        "Content-Type": "application/json",
-        Origin: "https://cursor.com"
+        'Content-Type': 'application/json',
+        Origin: 'https://cursor.com',
       },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
     });
 
     const record = asRecord(data);
@@ -234,9 +230,9 @@ export class CursorUsageService {
   ): Promise<unknown> {
     const range = getDateRangeForTimeframe(timeframe);
     const url = new URL(endpoint);
-    url.searchParams.set("startDate", range.startDate);
-    url.searchParams.set("endDate", range.endDate);
-    return this.fetchJson(url.toString(), { method: "GET", headers: authHeaders });
+    url.searchParams.set('startDate', range.startDate);
+    url.searchParams.set('endDate', range.endDate);
+    return this.fetchJson(url.toString(), { method: 'GET', headers: authHeaders });
   }
 
   private async fetchJson(url: string, init: RequestInit): Promise<unknown> {
@@ -251,7 +247,7 @@ export class CursorUsageService {
     const accessToken = await this.readAccessToken();
     const userId = extractUserIdFromToken(accessToken);
     return {
-      Cookie: `WorkosCursorSessionToken=${userId}%3A%3A${accessToken}`
+      Cookie: `WorkosCursorSessionToken=${userId}%3A%3A${accessToken}`,
     };
   }
 
@@ -264,15 +260,14 @@ export class CursorUsageService {
       return readAccessTokenViaNodeSqlite(dbPath);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      if (message.includes("cursorAuth/accessToken missing")) {
+      if (message.includes('cursorAuth/accessToken missing')) {
         this.lastAuthError = message;
         throw error;
       }
       try {
         return await readAccessTokenViaSqliteCli(dbPath);
       } catch (fallbackError) {
-        this.lastAuthError =
-          fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
+        this.lastAuthError = fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
         throw fallbackError;
       }
     }
@@ -281,32 +276,24 @@ export class CursorUsageService {
 
 function resolveCursorStateDbPath(): string {
   const home = os.homedir();
-  if (process.platform === "darwin") {
-    return path.join(
-      home,
-      "Library",
-      "Application Support",
-      "Cursor",
-      "User",
-      "globalStorage",
-      "state.vscdb"
-    );
+  if (process.platform === 'darwin') {
+    return path.join(home, 'Library', 'Application Support', 'Cursor', 'User', 'globalStorage', 'state.vscdb');
   }
-  if (process.platform === "win32") {
-    const appData = process.env.APPDATA || path.join(home, "AppData", "Roaming");
-    return path.join(appData, "Cursor", "User", "globalStorage", "state.vscdb");
+  if (process.platform === 'win32') {
+    const appData = process.env.APPDATA || path.join(home, 'AppData', 'Roaming');
+    return path.join(appData, 'Cursor', 'User', 'globalStorage', 'state.vscdb');
   }
-  const config = process.env.XDG_CONFIG_HOME || path.join(home, ".config");
-  return path.join(config, "Cursor", "User", "globalStorage", "state.vscdb");
+  const config = process.env.XDG_CONFIG_HOME || path.join(home, '.config');
+  return path.join(config, 'Cursor', 'User', 'globalStorage', 'state.vscdb');
 }
 
 function readAccessTokenViaNodeSqlite(dbPath: string): string {
   const db = new DatabaseSync(dbPath, { readOnly: true });
   try {
-    const row = db.prepare("SELECT value FROM ItemTable WHERE key = ?").get(ACCESS_TOKEN_KEY);
+    const row = db.prepare('SELECT value FROM ItemTable WHERE key = ?').get(ACCESS_TOKEN_KEY);
     const value = row?.value;
-    if (typeof value !== "string" || !value.trim()) {
-      throw new Error("cursorAuth/accessToken missing in state.vscdb");
+    if (typeof value !== 'string' || !value.trim()) {
+      throw new Error('cursorAuth/accessToken missing in state.vscdb');
     }
     return value.trim();
   } finally {
@@ -316,51 +303,51 @@ function readAccessTokenViaNodeSqlite(dbPath: string): string {
 
 async function readAccessTokenViaSqliteCli(dbPath: string): Promise<string> {
   const sql = `SELECT value FROM ItemTable WHERE key='${ACCESS_TOKEN_KEY}';`;
-  const { stdout } = await execFile("sqlite3", [dbPath, sql], {
+  const { stdout } = await execFile('sqlite3', [dbPath, sql], {
     maxBuffer: 2 * 1024 * 1024,
-    timeout: 15_000
+    timeout: 15_000,
   });
   const value = stdout.trim();
   if (!value) {
-    throw new Error("cursorAuth/accessToken missing in state.vscdb");
+    throw new Error('cursorAuth/accessToken missing in state.vscdb');
   }
   return value;
 }
 
 function extractUserIdFromToken(token: string): string {
   const payload = decodeJwtPayload(token);
-  const sub = String(payload.sub ?? "");
-  const maybeUserId = sub.includes("|") ? (sub.split("|").pop() ?? "") : sub;
-  if (maybeUserId.startsWith("user_")) {
+  const sub = String(payload.sub ?? '');
+  const maybeUserId = sub.includes('|') ? (sub.split('|').pop() ?? '') : sub;
+  if (maybeUserId.startsWith('user_')) {
     return maybeUserId;
   }
   const match = sub.match(/user_[A-Za-z0-9]+/);
   if (match) {
     return match[0];
   }
-  throw new Error("Could not extract user id from Cursor access token.");
+  throw new Error('Could not extract user id from Cursor access token.');
 }
 
 function decodeJwtPayload(token: string): Record<string, unknown> {
-  const parts = token.split(".");
+  const parts = token.split('.');
   if (parts.length < 2) {
     return {};
   }
-  const b64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
-  const padded = b64 + "=".repeat((4 - (b64.length % 4)) % 4);
+  const b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+  const padded = b64 + '='.repeat((4 - (b64.length % 4)) % 4);
   try {
-    return JSON.parse(Buffer.from(padded, "base64").toString("utf8")) as Record<string, unknown>;
+    return JSON.parse(Buffer.from(padded, 'base64').toString('utf8')) as Record<string, unknown>;
   } catch {
     return {};
   }
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
-  return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
+  return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {};
 }
 
 function numberOrZero(value: unknown): number {
-  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0;
 }
 
 function parseClassification(data: unknown): {
@@ -371,13 +358,10 @@ function parseClassification(data: unknown): {
 } {
   const record = asRecord(data);
   return {
-    intentDistribution: parseHistogram(record.intent_distribution, ["intent"]),
-    categories: parseHistogram(record.categories_histogram, ["category"]),
-    taskComplexity: parseHistogram(record.complexity_distribution, ["complexity"]),
-    promptSpecificity: parseHistogram(record.guidance_level_distribution, [
-      "guidance_level",
-      "guidanceLevel"
-    ])
+    intentDistribution: parseHistogram(record.intent_distribution, ['intent']),
+    categories: parseHistogram(record.categories_histogram, ['category']),
+    taskComplexity: parseHistogram(record.complexity_distribution, ['complexity']),
+    promptSpecificity: parseHistogram(record.guidance_level_distribution, ['guidance_level', 'guidanceLevel']),
   };
 }
 
@@ -388,12 +372,9 @@ function parseSegments(data: unknown): {
 } {
   const record = asRecord(data);
   return {
-    workType: parseHistogram(record.work_type_histogram, ["work_type", "workType"]),
-    categories: parseHistogram(record.categories_histogram, ["category"]),
-    promptSpecificity: parseHistogram(record.guidance_level_distribution, [
-      "guidance_level",
-      "guidanceLevel"
-    ])
+    workType: parseHistogram(record.work_type_histogram, ['work_type', 'workType']),
+    categories: parseHistogram(record.categories_histogram, ['category']),
+    promptSpecificity: parseHistogram(record.guidance_level_distribution, ['guidance_level', 'guidanceLevel']),
   };
 }
 
@@ -420,15 +401,15 @@ function parseHistogram(value: unknown, labelKeys: string[]): HistogramItem[] {
 function readLabel(record: Record<string, unknown>, preferred: string[]): string | undefined {
   for (const key of preferred) {
     const value = record[key];
-    if (typeof value === "string" && value.trim()) {
+    if (typeof value === 'string' && value.trim()) {
       return value.trim();
     }
   }
   for (const [key, value] of Object.entries(record)) {
-    if (key === "count") {
+    if (key === 'count') {
       continue;
     }
-    if (typeof value === "string" && value.trim()) {
+    if (typeof value === 'string' && value.trim()) {
       return value.trim();
     }
   }
@@ -449,19 +430,17 @@ function pickMetricHistogram(
   },
   metric: CursorUsageMetric
 ): HistogramItem[] {
-  if (metric === "workType") {
+  if (metric === 'workType') {
     return segments.workType;
   }
-  if (metric === "intentDistribution") {
+  if (metric === 'intentDistribution') {
     return classification.intentDistribution;
   }
-  if (metric === "taskComplexity") {
+  if (metric === 'taskComplexity') {
     return classification.taskComplexity;
   }
-  if (metric === "promptSpecificity") {
-    return segments.promptSpecificity.length
-      ? segments.promptSpecificity
-      : classification.promptSpecificity;
+  if (metric === 'promptSpecificity') {
+    return segments.promptSpecificity.length ? segments.promptSpecificity : classification.promptSpecificity;
   }
   return segments.categories.length ? segments.categories : classification.categories;
 }
@@ -472,11 +451,11 @@ function getDateRangeForTimeframe(timeframe: CursorUsageTimeframe): {
 } {
   const end = new Date();
   const start = new Date(end);
-  if (timeframe === "1d") {
+  if (timeframe === '1d') {
     start.setDate(end.getDate() - 1);
-  } else if (timeframe === "7d") {
+  } else if (timeframe === '7d') {
     start.setDate(end.getDate() - 7);
-  } else if (timeframe === "30d") {
+  } else if (timeframe === '30d') {
     start.setDate(end.getDate() - 30);
   } else {
     start.setDate(1);
@@ -484,13 +463,13 @@ function getDateRangeForTimeframe(timeframe: CursorUsageTimeframe): {
   }
   return {
     startDate: formatDateOnly(start),
-    endDate: formatDateOnly(end)
+    endDate: formatDateOnly(end),
   };
 }
 
 function formatDateOnly(date: Date): string {
   const year = date.getFullYear();
-  const month = `${date.getMonth() + 1}`.padStart(2, "0");
-  const day = `${date.getDate()}`.padStart(2, "0");
+  const month = `${date.getMonth() + 1}`.padStart(2, '0');
+  const day = `${date.getDate()}`.padStart(2, '0');
   return `${year}-${month}-${day}`;
 }

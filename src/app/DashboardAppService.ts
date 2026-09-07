@@ -1,38 +1,38 @@
-import { PollingScheduler } from "../core/pollingScheduler";
-import { deriveBlockedReason, blockedReasonLabel } from "../domain/statusEngine";
-import { computeBadges } from "../domain/statusEngine";
-import { DashboardSnapshot, ProviderSnapshot } from "../domain/types";
-import { ProviderAdapter } from "../providers/types";
-import { CursorUsageService } from "../services/CursorUsageService";
-import { CurrentRepoService } from "../services/CurrentRepoService";
+import { PollingScheduler } from '../core/pollingScheduler';
+import { deriveBlockedReason, blockedReasonLabel } from '../domain/statusEngine';
+import { computeBadges } from '../domain/statusEngine';
+import { DashboardSnapshot, ProviderSnapshot } from '../domain/types';
+import { ProviderAdapter } from '../providers/types';
+import { CursorUsageService } from '../services/CursorUsageService';
+import { CurrentRepoService } from '../services/CurrentRepoService';
 
 type OnSnapshot = (snapshot: DashboardSnapshot) => Promise<void> | void;
 
 export class DashboardAppService {
   private readonly scheduler = new PollingScheduler();
-  private lastSnapshots = new Map<ProviderSnapshot["provider"], ProviderSnapshot>();
-  private currentRepoSnapshot: DashboardSnapshot["currentRepo"] = {
+  private lastSnapshots = new Map<ProviderSnapshot['provider'], ProviderSnapshot>();
+  private currentRepoSnapshot: DashboardSnapshot['currentRepo'] = {
     branchAgeWarning: false,
     activeFileOwners: [],
     coreBranches: [],
-    recentBranches: []
+    recentBranches: [],
   };
-  private cursorUsageSnapshot: DashboardSnapshot["cursorUsage"] = {
+  private cursorUsageSnapshot: DashboardSnapshot['cursorUsage'] = {
     authenticated: false,
     reachable: false,
     monthly: {
       usedCents: 0,
       limitCents: 0,
       remainingCents: 0,
-      progressPercent: 0
+      progressPercent: 0,
     },
     recentRequests: [],
     conversationInsights: {
-      timeframe: "mtd",
-      metric: "categories",
-      segments: []
+      timeframe: 'mtd',
+      metric: 'categories',
+      segments: [],
     },
-    usageDashboardUrl: "https://cursor.com/dashboard/usage"
+    usageDashboardUrl: 'https://cursor.com/dashboard/usage',
   };
 
   constructor(
@@ -45,12 +45,12 @@ export class DashboardAppService {
 
   start(intervalMs: number, onSnapshot: OnSnapshot): void {
     this.scheduler.start({
-      id: "dashboard-poll",
+      id: 'dashboard-poll',
       intervalMs,
       run: async () => {
         await this.refreshNow();
         await onSnapshot(this.buildSnapshot());
-      }
+      },
     });
   }
 
@@ -80,14 +80,12 @@ export class DashboardAppService {
     const myWork = providers.flatMap((provider) => provider.workItems);
     const deployments = providers
       .flatMap((provider) => provider.deployments ?? [])
-      .sort(
-        (left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime()
-      )
+      .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime())
       .slice(0, 25);
     const badges = computeBadges(myWork);
-    const blockedItems = myWork.filter((item) => item.readiness === "blocked");
+    const blockedItems = myWork.filter((item) => item.readiness === 'blocked');
     const topBlockedReason =
-      deriveBlockedReason(blockedItems.flatMap((item) => item.blockedReasons)) ?? "awaitingReviews";
+      deriveBlockedReason(blockedItems.flatMap((item) => item.blockedReasons)) ?? 'awaitingReviews';
     const potentiallyBreakingItems = myWork
       .filter((item) => /BREAKING CHANGE|!:/i.test(item.title))
       .slice(0, 5)
@@ -95,8 +93,8 @@ export class DashboardAppService {
         id: item.id,
         title: item.title,
         repository: item.repository,
-        reason: "Title contains potential breaking-change marker.",
-        url: item.url
+        reason: 'Title contains potential breaking-change marker.',
+        url: item.url,
       }));
 
     return {
@@ -111,8 +109,8 @@ export class DashboardAppService {
         totalItems: myWork.length,
         blockedItems: blockedItems.length,
         topBlockedReason: blockedReasonLabel(topBlockedReason),
-        potentiallyBreakingItems
-      }
+        potentiallyBreakingItems,
+      },
     };
   }
 }
