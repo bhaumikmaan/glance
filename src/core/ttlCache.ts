@@ -23,7 +23,7 @@ export class TtlCache<T> {
   set(key: string, value: T, ttlMs: number): void {
     this.map.set(key, {
       value,
-      expiresAt: Date.now() + ttlMs
+      expiresAt: Date.now() + ttlMs,
     });
   }
 }

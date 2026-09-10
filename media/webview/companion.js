@@ -1,13 +1,13 @@
 (function () {
   function initCompanion() {
-    const companionMessage = document.getElementById("companion-message");
-    const companionTimer = document.getElementById("companion-timer");
+    const companionMessage = document.getElementById('companion-message');
+    const companionTimer = document.getElementById('companion-timer');
     let breakCountdownMinutes = 45;
     const messages = [
-      "Daily tip: Keep pull requests small and focused.",
-      "Reminder: Rebase long-running branches to avoid merge friction.",
-      "Hydration check: Drink water before your next context switch.",
-      "Review tip: Start with risky files and migration paths first."
+      'Daily tip: Keep pull requests small and focused.',
+      'Reminder: Rebase long-running branches to avoid merge friction.',
+      'Hydration check: Drink water before your next context switch.',
+      'Review tip: Start with risky files and migration paths first.',
     ];
 
     function rotate() {

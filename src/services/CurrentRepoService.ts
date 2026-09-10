@@ -1,13 +1,15 @@
-import * as path from "path";
-import * as vscode from "vscode";
-import { exec as execCallback } from "node:child_process";
-import { promisify } from "node:util";
+import * as path from 'path';
+import * as vscode from 'vscode';
+import { exec as execCallback } from 'node:child_process';
+import { promisify } from 'node:util';
+import { getJson } from '../core/httpClient';
 
 const exec = promisify(execCallback);
 
 type CurrentRepoSnapshot = {
   workspaceName?: string;
   workspacePath?: string;
+  effectiveDefaultBranch?: string;
   activeBranch?: string;
   activeBranchAgeDays?: number;
   branchAgeWarning: boolean;
@@ -17,7 +19,7 @@ type CurrentRepoSnapshot = {
   coreBranches: Array<{
     name: string;
     exists: boolean;
-    status: "success" | "failure" | "pending" | "unknown";
+    status: 'success' | 'failure' | 'pending' | 'unknown';
   }>;
   recentBranches: Array<{
     name: string;
@@ -27,30 +29,34 @@ type CurrentRepoSnapshot = {
 };
 
 export class CurrentRepoService {
-  async buildSnapshot(
-    branchAgeWarningDays: number,
-    defaultBranch: string
-  ): Promise<CurrentRepoSnapshot> {
+  constructor(
+    private readonly getBitbucketBaseUrl?: () => string,
+    private readonly getBitbucketToken?: () => Promise<string | undefined>
+  ) {}
+
+  async buildSnapshot(branchAgeWarningDays: number, defaultBranch: string): Promise<CurrentRepoSnapshot> {
     const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
     if (!workspaceFolder) {
       return {
         branchAgeWarning: false,
         activeFileOwners: [],
         coreBranches: [],
-        recentBranches: []
+        recentBranches: [],
       };
     }
 
     const rootPath = workspaceFolder.uri.fsPath;
-    const activeBranch = await this.safeGit("git rev-parse --abbrev-ref HEAD", rootPath);
-    const branchAgeDays = await this.getBranchAgeDays(rootPath, activeBranch, defaultBranch);
-    const coreBranches = await this.getCoreBranches(rootPath, defaultBranch);
+    const activeBranch = await this.safeGit('git rev-parse --abbrev-ref HEAD', rootPath);
+    const effectiveDefaultBranch = await this.resolveBaseBranch(rootPath, defaultBranch);
+    const branchAgeDays = await this.getBranchAgeDays(rootPath, activeBranch);
+    const coreBranches = await this.getCoreBranches(rootPath, effectiveDefaultBranch ?? defaultBranch);
     const recentBranches = await this.getRecentBranches(rootPath);
     const codeowners = await this.getCodeownersInfo(workspaceFolder.uri);
 
     return {
       workspaceName: workspaceFolder.name,
       workspacePath: rootPath,
+      effectiveDefaultBranch: effectiveDefaultBranch ?? undefined,
       activeBranch: activeBranch ?? undefined,
       activeBranchAgeDays: branchAgeDays ?? undefined,
       branchAgeWarning: (branchAgeDays ?? 0) > branchAgeWarningDays,
@@ -58,16 +64,16 @@ export class CurrentRepoService {
       activeFile: codeowners.activeFile,
       activeFileOwners: codeowners.owners,
       coreBranches,
-      recentBranches
+      recentBranches,
     };
   }
 
   private async getCoreBranches(
     workspacePath: string,
     defaultBranch: string
-  ): Promise<CurrentRepoSnapshot["coreBranches"]> {
-    const names = Array.from(new Set([defaultBranch, "main", "master", "develop"]));
-    const results: CurrentRepoSnapshot["coreBranches"] = [];
+  ): Promise<CurrentRepoSnapshot['coreBranches']> {
+    const names = Array.from(new Set([defaultBranch, 'main', 'master', 'develop']));
+    const results: CurrentRepoSnapshot['coreBranches'] = [];
     for (const name of names) {
       const exists = await this.branchExists(workspacePath, name);
       if (!exists) {
@@ -76,16 +82,71 @@ export class CurrentRepoService {
       results.push({
         name,
         exists,
-        status: "unknown"
+        status: await this.resolveBranchStatus(workspacePath, name),
       });
     }
     return results;
   }
 
+  private async resolveBranchStatus(
+    workspacePath: string,
+    branch: string
+  ): Promise<'success' | 'failure' | 'pending' | 'unknown'> {
+    const token = this.getBitbucketToken ? await this.getBitbucketToken() : undefined;
+    const baseUrl = this.getBitbucketBaseUrl ? this.getBitbucketBaseUrl() : undefined;
+    if (!token || !baseUrl) {
+      return 'unknown';
+    }
+    const commit = await this.safeGit(`git rev-parse ${branch}`, workspacePath);
+    if (!commit) {
+      return 'unknown';
+    }
+    try {
+      const endpoints = [
+        `${baseUrl}/rest/build-status/1.0/commits/${commit}`,
+        `${baseUrl}/rest/build-status/latest/commits/${commit}`,
+      ];
+      const responses = await Promise.allSettled(
+        endpoints.map((endpoint) =>
+          getJson<{
+            state?: string;
+            values?: Array<{ state?: string }>;
+          }>(endpoint, {
+            Authorization: `Bearer ${token}`,
+            Accept: 'application/json',
+          })
+        )
+      );
+      const states = responses
+        .filter(
+          (
+            result
+          ): result is PromiseFulfilledResult<{
+            state?: string;
+            values?: Array<{ state?: string }>;
+          }> => result.status === 'fulfilled'
+        )
+        .flatMap((result) => {
+          const topState = result.value.state ? [result.value.state] : [];
+          const childStates = (result.value.values ?? []).map((value) => value.state ?? '');
+          return [...topState, ...childStates];
+        })
+        .map((state) => state.toUpperCase());
+      if (states.some((state) => state.includes('FAIL'))) return 'failure';
+      if (states.some((state) => state.includes('INPROGRESS') || state.includes('PENDING'))) {
+        return 'pending';
+      }
+      if (states.some((state) => state.includes('SUCCESS'))) return 'success';
+      return 'unknown';
+    } catch {
+      return 'unknown';
+    }
+  }
+
   private async branchExists(workspacePath: string, branch: string): Promise<boolean> {
     try {
       await exec(`git show-ref --verify --quiet refs/heads/${branch}`, {
-        cwd: workspacePath
+        cwd: workspacePath,
       });
       return true;
     } catch {
@@ -93,53 +154,37 @@ export class CurrentRepoService {
     }
   }
 
-  private async getBranchAgeDays(
-    workspacePath: string,
-    branchName: string | null,
-    defaultBranch: string
-  ): Promise<number | null> {
+  private async getBranchAgeDays(workspacePath: string, branchName: string | null): Promise<number | null> {
     if (!branchName) {
       return null;
     }
-    const baseBranch = (await this.branchExists(workspacePath, defaultBranch))
-      ? defaultBranch
-      : (await this.branchExists(workspacePath, "main"))
-        ? "main"
-        : (await this.branchExists(workspacePath, "master"))
-          ? "master"
-          : null;
-
-    if (!baseBranch || branchName === baseBranch) {
-      return 0;
-    }
-
-    const mergeBase = await this.safeGit(
-      `git merge-base ${baseBranch} ${branchName}`,
-      workspacePath
-    );
-    if (!mergeBase) {
+    const latestCommitTs = await this.safeGit(`git log -1 --format=%ct ${branchName}`, workspacePath);
+    if (!latestCommitTs) {
       return null;
     }
-
-    const firstCommitTs = await this.safeGit(
-      `git log ${mergeBase.trim()}..${branchName} --reverse --format=%ct`,
-      workspacePath
-    );
-    const firstTsLine = firstCommitTs?.split(/\r?\n/).find(Boolean);
-    if (!firstTsLine) {
-      return 0;
-    }
-
-    const firstMs = Number(firstTsLine) * 1000;
-    if (Number.isNaN(firstMs)) {
+    const lastTs = Number(latestCommitTs.split(/\r?\n/)[0]) * 1000;
+    if (Number.isNaN(lastTs)) {
       return null;
     }
-    return Math.floor((Date.now() - firstMs) / 86_400_000);
+    return Math.max(0, Math.floor((Date.now() - lastTs) / 86_400_000));
   }
 
-  private async getRecentBranches(
-    workspacePath: string
-  ): Promise<CurrentRepoSnapshot["recentBranches"]> {
+  private async resolveBaseBranch(workspacePath: string, configuredDefault: string): Promise<string | null> {
+    if (await this.branchExists(workspacePath, configuredDefault)) {
+      return configuredDefault;
+    }
+    const originHead = await this.safeGit('git symbolic-ref --short refs/remotes/origin/HEAD', workspacePath);
+    const fromOriginHead = originHead?.replace('origin/', '');
+    if (fromOriginHead && (await this.branchExists(workspacePath, fromOriginHead))) {
+      return fromOriginHead;
+    }
+    if (await this.branchExists(workspacePath, 'develop')) return 'develop';
+    if (await this.branchExists(workspacePath, 'main')) return 'main';
+    if (await this.branchExists(workspacePath, 'master')) return 'master';
+    return null;
+  }
+
+  private async getRecentBranches(workspacePath: string): Promise<CurrentRepoSnapshot['recentBranches']> {
     const output = await this.safeGit(
       'git for-each-ref refs/heads --format="%(refname:short)|%(committerdate:iso8601)"',
       workspacePath
@@ -152,17 +197,13 @@ export class CurrentRepoService {
       .split(/\r?\n/)
       .filter(Boolean)
       .map((line) => {
-        const [name, ts] = line.split("|");
+        const [name, ts] = line.split('|');
         const date = new Date(ts);
-        const ageDays = Number.isNaN(date.getTime())
-          ? 9999
-          : Math.floor((Date.now() - date.getTime()) / 86_400_000);
+        const ageDays = Number.isNaN(date.getTime()) ? 9999 : Math.floor((Date.now() - date.getTime()) / 86_400_000);
         return {
           name,
-          lastCommitAt: Number.isNaN(date.getTime())
-            ? new Date().toISOString()
-            : date.toISOString(),
-          ageDays
+          lastCommitAt: Number.isNaN(date.getTime()) ? new Date().toISOString() : date.toISOString(),
+          ageDays,
         };
       })
       .filter((branch) => branch.ageDays <= 30)
@@ -178,9 +219,9 @@ export class CurrentRepoService {
     const activeFileUri = vscode.window.activeTextEditor?.document.uri;
     const activeFilePath = activeFileUri?.fsPath;
     const candidates = [
-      vscode.Uri.joinPath(workspaceUri, ".github", "CODEOWNERS"),
-      vscode.Uri.joinPath(workspaceUri, "docs", "CODEOWNERS"),
-      vscode.Uri.joinPath(workspaceUri, "CODEOWNERS")
+      vscode.Uri.joinPath(workspaceUri, '.github', 'CODEOWNERS'),
+      vscode.Uri.joinPath(workspaceUri, 'docs', 'CODEOWNERS'),
+      vscode.Uri.joinPath(workspaceUri, 'CODEOWNERS'),
     ];
 
     let content: string | undefined;
@@ -188,7 +229,7 @@ export class CurrentRepoService {
     for (const candidate of candidates) {
       try {
         const bytes = await vscode.workspace.fs.readFile(candidate);
-        content = Buffer.from(bytes).toString("utf8");
+        content = Buffer.from(bytes).toString('utf8');
         selectedPath = candidate.fsPath;
         break;
       } catch {
@@ -206,7 +247,7 @@ export class CurrentRepoService {
     return {
       codeownersPath: selectedPath,
       activeFile: activeFilePath,
-      owners
+      owners,
     };
   }
 
@@ -221,19 +262,19 @@ export class CurrentRepoService {
 }
 
 function toPosix(value: string): string {
-  return value.replaceAll("\\", "/");
+  return value.replaceAll('\\', '/');
 }
 
 function resolveOwners(codeownersContent: string, relativePath: string): string[] {
   const rules = codeownersContent
     .split(/\r?\n/)
     .map((line) => line.trim())
-    .filter((line) => line.length > 0 && !line.startsWith("#"))
+    .filter((line) => line.length > 0 && !line.startsWith('#'))
     .map((line) => {
       const parts = line.split(/\s+/);
       return {
         pattern: parts[0],
-        owners: parts.slice(1)
+        owners: parts.slice(1),
       };
     });
 
@@ -247,20 +288,20 @@ function resolveOwners(codeownersContent: string, relativePath: string): string[
 }
 
 function matchesPattern(pattern: string, relativePath: string): boolean {
-  const normalizedPattern = pattern.replace(/^\//, "");
-  if (normalizedPattern === "*") {
+  const normalizedPattern = pattern.replace(/^\//, '');
+  if (normalizedPattern === '*') {
     return true;
   }
-  if (!normalizedPattern.includes("*")) {
+  if (!normalizedPattern.includes('*')) {
     return relativePath === normalizedPattern || relativePath.startsWith(`${normalizedPattern}/`);
   }
 
   const regex = new RegExp(
     `^${normalizedPattern
-      .replaceAll(".", "\\.")
-      .replaceAll("**", "___DOUBLE___")
-      .replaceAll("*", "[^/]*")
-      .replaceAll("___DOUBLE___", ".*")}$`
+      .replaceAll('.', '\\.')
+      .replaceAll('**', '___DOUBLE___')
+      .replaceAll('*', '[^/]*')
+      .replaceAll('___DOUBLE___', '.*')}$`
   );
   return regex.test(relativePath);
 }

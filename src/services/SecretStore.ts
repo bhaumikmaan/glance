@@ -1,4 +1,4 @@
-import type * as vscode from "vscode";
+import type * as vscode from 'vscode';
 
 export class SecretStore {
   constructor(private readonly secrets: vscode.SecretStorage) {}
